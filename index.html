@@ -4,37 +4,52 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Post-Op Exercise Tracker</title>
-  <link rel="stylesheet" href="css/styles.css">
 </head>
 <body>
-
-  <div id="screen-loading">Loading...</div>
-  <div id="screen-log"     style="display:none"></div>
-  <div id="screen-history" style="display:none"></div>
-  <div id="screen-progressions" style="display:none"></div>
+  <div id="status">Starting...</div>
 
   <script type="module">
-    // T2.9 integration test bootstrap
-    // Imports firebase-config.js which initialises Firebase and enables offline persistence
-    import { auth, db } from './js/firebase-config.js';
-    import { initAuth, getCurrentUID } from './js/auth.js';
-    import {
-      saveProfile, getProfile,
-      saveLogEntry, getLog,
-      getProgressions, updateProgression,
-      todayStr
-    } from './js/firestore.js';
+    const status = document.getElementById('status');
 
-    // Expose to browser console for manual testing
-    window._test = {
-      auth, db, initAuth, getCurrentUID,
-      saveProfile, getProfile,
-      saveLogEntry, getLog,
-      getProgressions, updateProgression,
-      todayStr
-    };
+    function log(msg) {
+      console.log(msg);
+      status.innerHTML += '<br>' + msg;
+    }
 
-    console.log('Firebase modules loaded. Run integration tests via window._test');
+    log('Step 1: Starting module imports');
+
+    try {
+      const { initializeApp } = await import("https://www.gstatic.com/firebasejs/10.12.0/firebase-app.js");
+      log('Step 2: firebase-app OK');
+
+      const { getAuth } = await import("https://www.gstatic.com/firebasejs/10.12.0/firebase-auth.js");
+      log('Step 3: firebase-auth OK');
+
+      const { getFirestore, initializeFirestore, persistentLocalCache } = await import("https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js");
+      log('Step 4: firebase-firestore OK');
+
+      log('Step 5: All Firebase CDN imports succeeded');
+
+      const { auth, db } = await import('./js/firebase-config.js');
+      log('Step 6: firebase-config.js OK');
+
+      const { initAuth, getCurrentUID } = await import('./js/auth.js');
+      log('Step 7: auth.js OK');
+
+      const { saveProfile, getProfile, saveLogEntry, getLog,
+              getProgressions, updateProgression, todayStr } = await import('./js/firestore.js');
+      log('Step 8: firestore.js OK');
+
+      window._test = { auth, db, initAuth, getCurrentUID,
+                       saveProfile, getProfile, saveLogEntry,
+                       getLog, getProgressions, updateProgression, todayStr };
+
+      log('Step 9: window._test ready — all imports succeeded');
+
+    } catch(err) {
+      log('ERROR: ' + err.message);
+      console.error('Full error:', err);
+    }
   </script>
 
 </body>
