@@ -1,1 +1,41 @@
-<!-- Post-Op Exercise Tracker — SPA shell. Entry point for the application. -->
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Post-Op Exercise Tracker</title>
+  <link rel="stylesheet" href="css/styles.css">
+</head>
+<body>
+
+  <div id="screen-loading">Loading...</div>
+  <div id="screen-log"     style="display:none"></div>
+  <div id="screen-history" style="display:none"></div>
+  <div id="screen-progressions" style="display:none"></div>
+
+  <script type="module">
+    // T2.9 integration test bootstrap
+    // Imports firebase-config.js which initialises Firebase and enables offline persistence
+    import { auth, db } from './js/firebase-config.js';
+    import { initAuth, getCurrentUID } from './js/auth.js';
+    import {
+      saveProfile, getProfile,
+      saveLogEntry, getLog,
+      getProgressions, updateProgression,
+      todayStr
+    } from './js/firestore.js';
+
+    // Expose to browser console for manual testing
+    window._test = {
+      auth, db, initAuth, getCurrentUID,
+      saveProfile, getProfile,
+      saveLogEntry, getLog,
+      getProgressions, updateProgression,
+      todayStr
+    };
+
+    console.log('Firebase modules loaded. Run integration tests via window._test');
+  </script>
+
+</body>
+</html>
