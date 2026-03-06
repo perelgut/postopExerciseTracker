@@ -2,10 +2,10 @@
 // IMPORTANT: Placeholder values below are replaced at deploy time by GitHub Actions.
 // Never replace placeholders with real values in this file.
 
-import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-app.js";
-import { getAuth }       from "https://www.gstatic.com/firebasejs/10.12.0/firebase-auth.js";
-import { getFirestore, enableIndexedDbPersistence }
-                         from "https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js";
+import { initializeApp }                    from "https://www.gstatic.com/firebasejs/10.12.0/firebase-app.js";
+import { getAuth }                          from "https://www.gstatic.com/firebasejs/10.12.0/firebase-auth.js";
+import { getFirestore, initializeFirestore,
+         persistentLocalCache }             from "https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js";
 
 const firebaseConfig = {
   apiKey:            "__FIREBASE_API_KEY__",
@@ -18,15 +18,10 @@ const firebaseConfig = {
 
 const app  = initializeApp(firebaseConfig);
 const auth = getAuth(app);
-const db   = getFirestore(app);
 
-// Enable offline persistence — queues writes when network is unavailable
-enableIndexedDbPersistence(db).catch(err => {
-  if (err.code === 'failed-precondition') {
-    console.warn('Firebase offline persistence unavailable — multiple tabs open.');
-  } else if (err.code === 'unimplemented') {
-    console.warn('Firebase offline persistence not supported in this browser.');
-  }
+// v10 replacement for deprecated enableIndexedDbPersistence
+const db = initializeFirestore(app, {
+  localCache: persistentLocalCache()
 });
 
 export { auth, db };
