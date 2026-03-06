@@ -4,52 +4,32 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Post-Op Exercise Tracker</title>
+  <link rel="stylesheet" href="css/styles.css">
 </head>
 <body>
-  <div id="status">Starting...</div>
+
+  <div id="screen-loading">Loading...</div>
+  <div id="screen-log"     style="display:none"></div>
+  <div id="screen-history" style="display:none"></div>
+  <div id="screen-progressions" style="display:none"></div>
 
   <script type="module">
-    const status = document.getElementById('status');
-    function log(msg) {
-      console.log(msg);
-      status.innerHTML += '<br>' + msg;
-    }
+    const { auth, db }           = await import('./js/firebase-config.js');
+    const { initAuth, getCurrentUID } = await import('./js/auth.js');
+    const { saveProfile, getProfile,
+            saveLogEntry, getLog,
+            getProgressions, updateProgression,
+            todayStr }           = await import('./js/firestore.js');
 
-    try {
-      const { initializeApp } = await import("https://www.gstatic.com/firebasejs/10.12.0/firebase-app.js");
-      const { getAuth, signInAnonymously, onAuthStateChanged } = await import("https://www.gstatic.com/firebasejs/10.12.0/firebase-auth.js");
-      const { initializeFirestore, persistentLocalCache } = await import("https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js");
+    window._test = {
+      auth, db, initAuth, getCurrentUID,
+      saveProfile, getProfile,
+      saveLogEntry, getLog,
+      getProgressions, updateProgression,
+      todayStr
+    };
 
-      log('Step 1: CDN imports OK');
-
-      const { auth, db } = await import('./js/firebase-config.js');
-      log('Step 2: firebase-config OK — project: ' + auth.app.options.projectId);
-
-      log('Step 3: Attempting anonymous sign-in...');
-
-      onAuthStateChanged(auth, user => {
-        if (user) {
-          log('Step 4: onAuthStateChanged fired — UID: ' + user.uid);
-        } else {
-          log('Step 4: onAuthStateChanged fired — user is NULL');
-        }
-      });
-
-      signInAnonymously(auth)
-        .then(result => {
-          log('Step 5: signInAnonymously resolved — UID: ' + result.user.uid);
-        })
-        .catch(err => {
-          log('Step 5 ERROR: ' + err.code + ' — ' + err.message);
-          console.error('signInAnonymously error:', err);
-        });
-
-      log('Step 3 complete: sign-in request sent, waiting for response...');
-
-    } catch(err) {
-      log('CATCH ERROR: ' + err.message);
-      console.error('Full error:', err);
-    }
+    console.log('Firebase modules loaded. Run integration tests via window._test');
   </script>
 
 </body>
