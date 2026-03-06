@@ -1,0 +1,1 @@
+// Application bootstrap — initialises Firebase, runs 9-step startup sequence.

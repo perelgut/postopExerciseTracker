@@ -1,0 +1,1 @@
+// 30-day history table — fetches log data and renders the history screen.

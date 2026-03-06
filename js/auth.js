@@ -1,0 +1,1 @@
+// Firebase Anonymous Authentication — creates/restores anonymous UID, localStorage fallback.

@@ -1,0 +1,1 @@
+// Scheduling logic — determines which exercises are applicable for a given day of the week.

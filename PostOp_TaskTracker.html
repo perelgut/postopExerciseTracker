@@ -1,0 +1,923 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>postopExerciseTracker — Project Task Tracker</title>
+<style>
+  @import url('https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;600;700&family=DM+Sans:wght@300;400;500;600&display=swap');
+
+  :root {
+    --bg:        #0f1117;
+    --surface:   #181c27;
+    --border:    #2a2f3e;
+    --text:      #e2e8f0;
+    --muted:     #6b7280;
+    --accent:    #3b82f6;
+
+    --p1: #3b82f6;  --p1-bg: #1e3a5f;
+    --p2: #10b981;  --p2-bg: #064e3b;
+    --p3: #f59e0b;  --p3-bg: #451a03;
+    --p4: #a78bfa;  --p4-bg: #2e1065;
+    --p5: #f43f5e;  --p5-bg: #4c0519;
+
+    --green:  #22c55e;  --green-bg:  #052e16;
+    --yellow: #eab308;  --yellow-bg: #422006;
+    --red:    #ef4444;  --red-bg:    #450a0a;
+    --grey:   #6b7280;  --grey-bg:   #1f2937;
+
+    --crit: #ef4444;
+  }
+
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+  body {
+    font-family: 'DM Sans', sans-serif;
+    background: var(--bg);
+    color: var(--text);
+    min-height: 100vh;
+    padding: 0 0 60px;
+  }
+
+  /* ── HEADER ── */
+  header {
+    background: var(--surface);
+    border-bottom: 1px solid var(--border);
+    padding: 20px 32px;
+    position: sticky;
+    top: 0;
+    z-index: 100;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 16px;
+    flex-wrap: wrap;
+  }
+  .header-left h1 {
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 1.1rem;
+    font-weight: 700;
+    color: var(--accent);
+    letter-spacing: -0.02em;
+  }
+  .header-left p {
+    font-size: 0.75rem;
+    color: var(--muted);
+    margin-top: 2px;
+  }
+  .header-stats {
+    display: flex;
+    gap: 12px;
+    flex-wrap: wrap;
+  }
+  .stat-pill {
+    background: var(--bg);
+    border: 1px solid var(--border);
+    border-radius: 20px;
+    padding: 4px 12px;
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 0.72rem;
+    display: flex;
+    align-items: center;
+    gap: 6px;
+  }
+  .stat-pill .dot {
+    width: 7px; height: 7px;
+    border-radius: 50%;
+    flex-shrink: 0;
+  }
+
+  /* ── PROGRESS BAR ── */
+  .progress-bar-wrap {
+    background: var(--surface);
+    border-bottom: 1px solid var(--border);
+    padding: 10px 32px;
+    display: flex;
+    align-items: center;
+    gap: 16px;
+  }
+  .progress-bar-track {
+    flex: 1;
+    height: 6px;
+    background: var(--border);
+    border-radius: 3px;
+    overflow: hidden;
+  }
+  .progress-bar-fill {
+    height: 100%;
+    background: linear-gradient(90deg, var(--green), var(--accent));
+    border-radius: 3px;
+    transition: width 0.5s ease;
+  }
+  .progress-pct {
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 0.78rem;
+    color: var(--green);
+    min-width: 40px;
+    text-align: right;
+  }
+
+  /* ── PHASE SECTIONS ── */
+  .phase-section { margin: 24px 32px 0; }
+
+  .phase-header {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    margin-bottom: 10px;
+    padding: 10px 16px;
+    border-radius: 8px;
+    border-left: 3px solid;
+  }
+  .phase-header .phase-num {
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 0.7rem;
+    font-weight: 700;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    opacity: 0.9;
+  }
+  .phase-header .phase-title {
+    font-size: 0.9rem;
+    font-weight: 600;
+    flex: 1;
+  }
+  .phase-header .phase-meta {
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 0.7rem;
+    opacity: 0.7;
+  }
+
+  /* ── TASK TABLE ── */
+  .task-table {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: 0.82rem;
+    background: var(--surface);
+    border-radius: 8px;
+    overflow: hidden;
+    border: 1px solid var(--border);
+    margin-bottom: 8px;
+  }
+  .task-table thead tr {
+    background: #1a1f2e;
+  }
+  .task-table thead th {
+    padding: 8px 12px;
+    text-align: left;
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 0.65rem;
+    font-weight: 600;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    color: var(--muted);
+    border-bottom: 1px solid var(--border);
+    white-space: nowrap;
+  }
+  .task-table thead th.center { text-align: center; }
+
+  .task-row {
+    border-bottom: 1px solid var(--border);
+    transition: background 0.15s;
+    cursor: pointer;
+  }
+  .task-row:last-child { border-bottom: none; }
+  .task-row:hover { background: #1e2335; }
+  .task-row.crit-row { border-left: 2px solid var(--crit); }
+
+  .task-row td {
+    padding: 9px 12px;
+    vertical-align: middle;
+  }
+
+  .task-id {
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 0.72rem;
+    font-weight: 700;
+    white-space: nowrap;
+  }
+  .task-id.crit { color: var(--crit); }
+
+  .task-name {
+    max-width: 380px;
+    line-height: 1.4;
+  }
+  .task-name .crit-badge {
+    display: inline-block;
+    background: #450a0a;
+    color: var(--crit);
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 0.6rem;
+    padding: 1px 5px;
+    border-radius: 3px;
+    margin-left: 6px;
+    vertical-align: middle;
+    letter-spacing: 0.05em;
+  }
+
+  .task-days {
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 0.72rem;
+    text-align: center;
+    color: var(--muted);
+    white-space: nowrap;
+  }
+
+  .task-deps {
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 0.65rem;
+    color: var(--muted);
+    white-space: nowrap;
+  }
+
+  .task-sched {
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 0.65rem;
+    text-align: center;
+    color: var(--muted);
+    white-space: nowrap;
+  }
+
+  /* ── STATUS BADGE ── */
+  .status-badge {
+    display: inline-flex;
+    align-items: center;
+    gap: 5px;
+    padding: 3px 9px;
+    border-radius: 12px;
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 0.65rem;
+    font-weight: 600;
+    letter-spacing: 0.04em;
+    white-space: nowrap;
+    cursor: pointer;
+    user-select: none;
+    transition: opacity 0.15s;
+  }
+  .status-badge:hover { opacity: 0.8; }
+  .status-badge::before {
+    content: '';
+    width: 6px; height: 6px;
+    border-radius: 50%;
+    flex-shrink: 0;
+  }
+  .status-not-started  { background: var(--grey-bg);   color: var(--grey);   border: 1px solid #374151; }
+  .status-not-started::before  { background: var(--grey); }
+  .status-in-progress  { background: #1e3a5f;           color: #60a5fa;       border: 1px solid #1d4ed8; }
+  .status-in-progress::before  { background: #60a5fa; }
+  .status-early        { background: var(--green-bg);   color: var(--green);  border: 1px solid #166534; }
+  .status-early::before        { background: var(--green); }
+  .status-on-time      { background: var(--green-bg);   color: var(--green);  border: 1px solid #166534; }
+  .status-on-time::before      { background: var(--green); }
+  .status-1-day-late   { background: var(--yellow-bg);  color: var(--yellow); border: 1px solid #854d0e; }
+  .status-1-day-late::before   { background: var(--yellow); }
+  .status-late         { background: var(--red-bg);     color: var(--red);    border: 1px solid #991b1b; }
+  .status-late::before         { background: var(--red); }
+
+  /* ── COMPLETION DATE INPUT ── */
+  .date-input {
+    background: transparent;
+    border: 1px solid var(--border);
+    border-radius: 4px;
+    color: var(--text);
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 0.68rem;
+    padding: 3px 7px;
+    width: 120px;
+    cursor: pointer;
+    transition: border-color 0.15s;
+  }
+  .date-input:focus {
+    outline: none;
+    border-color: var(--accent);
+  }
+  .date-input:hover { border-color: #4b5563; }
+
+  /* ── MODAL ── */
+  .modal-overlay {
+    display: none;
+    position: fixed;
+    inset: 0;
+    background: rgba(0,0,0,0.75);
+    z-index: 200;
+    align-items: center;
+    justify-content: center;
+  }
+  .modal-overlay.open { display: flex; }
+  .modal {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    padding: 28px;
+    max-width: 560px;
+    width: 90%;
+    max-height: 80vh;
+    overflow-y: auto;
+    position: relative;
+  }
+  .modal h2 {
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 0.9rem;
+    color: var(--accent);
+    margin-bottom: 4px;
+  }
+  .modal .modal-title {
+    font-size: 1rem;
+    font-weight: 600;
+    margin-bottom: 16px;
+    padding-bottom: 12px;
+    border-bottom: 1px solid var(--border);
+    line-height: 1.4;
+  }
+  .modal-field { margin-bottom: 14px; }
+  .modal-field label {
+    display: block;
+    font-size: 0.72rem;
+    font-weight: 600;
+    color: var(--muted);
+    text-transform: uppercase;
+    letter-spacing: 0.06em;
+    margin-bottom: 4px;
+  }
+  .modal-field .val {
+    font-size: 0.85rem;
+    line-height: 1.5;
+  }
+  .modal-field .mono-val {
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 0.78rem;
+    color: var(--accent);
+  }
+  .modal-field .prompt-box {
+    background: var(--bg);
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    padding: 12px;
+    font-size: 0.78rem;
+    line-height: 1.6;
+    color: #cbd5e1;
+    white-space: pre-wrap;
+    word-break: break-word;
+    max-height: 200px;
+    overflow-y: auto;
+  }
+  .modal-actions {
+    display: flex;
+    gap: 10px;
+    margin-top: 20px;
+    padding-top: 16px;
+    border-top: 1px solid var(--border);
+    flex-wrap: wrap;
+  }
+  .btn {
+    padding: 7px 16px;
+    border-radius: 6px;
+    font-size: 0.78rem;
+    font-weight: 600;
+    cursor: pointer;
+    border: none;
+    transition: opacity 0.15s;
+  }
+  .btn:hover { opacity: 0.85; }
+  .btn-primary { background: var(--accent); color: white; }
+  .btn-ghost { background: var(--border); color: var(--text); }
+  .btn-close {
+    position: absolute;
+    top: 14px; right: 16px;
+    background: none;
+    border: none;
+    color: var(--muted);
+    font-size: 1.2rem;
+    cursor: pointer;
+    line-height: 1;
+    padding: 4px;
+  }
+  .btn-close:hover { color: var(--text); }
+
+  /* ── LEGEND ── */
+  .legend {
+    display: flex;
+    gap: 16px;
+    flex-wrap: wrap;
+    padding: 12px 32px;
+    border-bottom: 1px solid var(--border);
+    background: var(--surface);
+  }
+  .legend-item {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    font-size: 0.72rem;
+    color: var(--muted);
+  }
+
+  /* ── FILTER BAR ── */
+  .filter-bar {
+    display: flex;
+    gap: 8px;
+    padding: 12px 32px;
+    flex-wrap: wrap;
+    align-items: center;
+    border-bottom: 1px solid var(--border);
+  }
+  .filter-btn {
+    padding: 4px 12px;
+    border-radius: 16px;
+    font-size: 0.72rem;
+    font-family: 'JetBrains Mono', monospace;
+    cursor: pointer;
+    border: 1px solid var(--border);
+    background: transparent;
+    color: var(--muted);
+    transition: all 0.15s;
+  }
+  .filter-btn:hover, .filter-btn.active {
+    background: var(--accent);
+    color: white;
+    border-color: var(--accent);
+  }
+  .filter-label {
+    font-size: 0.72rem;
+    color: var(--muted);
+    margin-right: 4px;
+  }
+
+  /* ── FOOTER ── */
+  .page-footer {
+    padding: 16px 32px;
+    font-size: 0.7rem;
+    color: var(--muted);
+    font-family: 'JetBrains Mono', monospace;
+    border-top: 1px solid var(--border);
+    margin-top: 32px;
+    display: flex;
+    justify-content: space-between;
+    flex-wrap: wrap;
+    gap: 8px;
+  }
+
+  /* ── RESPONSIVE ── */
+  @media (max-width: 768px) {
+    header, .phase-section, .filter-bar, .legend, .progress-bar-wrap { padding-left: 16px; padding-right: 16px; }
+    .phase-section { margin-left: 16px; margin-right: 16px; }
+    .task-deps, .task-sched { display: none; }
+    .task-name { max-width: 200px; }
+    .date-input { width: 100px; }
+  }
+</style>
+</head>
+<body>
+
+<header>
+  <div class="header-left">
+    <h1>postopExerciseTracker</h1>
+    <p>Project Task Tracker &mdash; v1.0 &mdash; Based on Project Plan v1.0</p>
+  </div>
+  <div class="header-stats" id="headerStats"></div>
+</header>
+
+<div class="progress-bar-wrap">
+  <span style="font-size:0.72rem;color:var(--muted);white-space:nowrap;">Overall Progress</span>
+  <div class="progress-bar-track">
+    <div class="progress-bar-fill" id="progressFill" style="width:0%"></div>
+  </div>
+  <span class="progress-pct" id="progressPct">0%</span>
+</div>
+
+<div class="legend">
+  <span class="legend-item"><span class="status-badge status-not-started">Not Started</span></span>
+  <span class="legend-item"><span class="status-badge status-in-progress">In Progress</span></span>
+  <span class="legend-item"><span class="status-badge status-early">Early / On Time</span> <span style="font-size:0.65rem">(green)</span></span>
+  <span class="legend-item"><span class="status-badge status-1-day-late">1 Day Late</span> <span style="font-size:0.65rem">(yellow)</span></span>
+  <span class="legend-item"><span class="status-badge status-late">Late &gt;1 Day</span> <span style="font-size:0.65rem">(red)</span></span>
+  <span class="legend-item" style="margin-left:8px">
+    <span style="display:inline-block;width:10px;height:10px;background:var(--crit);border-radius:2px"></span>
+    <span>Critical path task</span>
+  </span>
+</div>
+
+<div class="filter-bar">
+  <span class="filter-label">Filter:</span>
+  <button class="filter-btn active" data-filter="all" onclick="setFilter(this,'all')">All (42)</button>
+  <button class="filter-btn" data-filter="1" onclick="setFilter(this,'1')">Phase 1</button>
+  <button class="filter-btn" data-filter="2" onclick="setFilter(this,'2')">Phase 2</button>
+  <button class="filter-btn" data-filter="3" onclick="setFilter(this,'3')">Phase 3</button>
+  <button class="filter-btn" data-filter="4" onclick="setFilter(this,'4')">Phase 4</button>
+  <button class="filter-btn" data-filter="5" onclick="setFilter(this,'5')">Phase 5</button>
+  <button class="filter-btn" data-filter="crit" onclick="setFilter(this,'crit')">⚑ Critical Path</button>
+  <button class="filter-btn" data-filter="incomplete" onclick="setFilter(this,'incomplete')">Incomplete</button>
+  <button class="filter-btn" data-filter="late" onclick="setFilter(this,'late')">⚠ Late</button>
+</div>
+
+<div id="phaseSections"></div>
+
+<!-- MODAL -->
+<div class="modal-overlay" id="modalOverlay" onclick="closeModal(event)">
+  <div class="modal" id="modalBox">
+    <button class="btn-close" onclick="closeModalDirect()">✕</button>
+    <h2 id="modalId"></h2>
+    <div class="modal-title" id="modalName"></div>
+    <div id="modalBody"></div>
+    <div class="modal-actions">
+      <button class="btn btn-primary" onclick="markInProgress()">Mark In Progress</button>
+      <button class="btn btn-ghost" onclick="closeModalDirect()">Close</button>
+    </div>
+  </div>
+</div>
+
+<div class="page-footer">
+  <span id="footerLeft">postopExerciseTracker &mdash; Task Tracker &mdash; Data stored in browser localStorage</span>
+  <span id="footerRight"></span>
+</div>
+
+<script>
+// ── TASK DATA ──────────────────────────────────────────────────────────────────
+const PHASES = {
+  1: { name: "Phase 1 — Project Setup & Infrastructure", color: "#3b82f6", bg: "#1e3a5f" },
+  2: { name: "Phase 2 — Data Layer",                    color: "#10b981", bg: "#064e3b" },
+  3: { name: "Phase 3 — UI: Core Screens",              color: "#f59e0b", bg: "#451a03" },
+  4: { name: "Phase 4 — Integration, Polish & Should Haves", color: "#a78bfa", bg: "#2e1065" },
+  5: { name: "Phase 5 — Release & Handover",            color: "#f43f5e", bg: "#4c0519" },
+};
+
+const TASKS = [
+  {id:"T1.1",ph:1,name:"Create GitHub repository (postopExerciseTracker, public)",days:0.5,deps:[],crit:true,reqs:"M-24",sched:{s:0,e:0.5}},
+  {id:"T1.2",ph:1,name:"Set up GitHub Pages + deploy.yml GitHub Actions workflow",days:1,deps:["T1.1"],crit:true,reqs:"M-24",sched:{s:0.5,e:1.5}},
+  {id:"T1.3",ph:1,name:"Create Firebase project (perelgut@gmail.com)",days:0.5,deps:["T1.1"],crit:true,reqs:"M-15,M-16",sched:{s:0.5,e:1}},
+  {id:"T1.4",ph:1,name:"Create Firestore database (northamerica-northeast2, Toronto)",days:0.5,deps:["T1.3"],crit:true,reqs:"M-15",sched:{s:1,e:1.5}},
+  {id:"T1.5",ph:1,name:"Enable Firebase Anonymous Authentication",days:0.5,deps:["T1.3"],crit:true,reqs:"M-16",sched:{s:1,e:1.5}},
+  {id:"T1.6",ph:1,name:"Apply Firestore security rules",days:0.5,deps:["T1.4"],crit:true,reqs:"M-15,M-16",sched:{s:1.5,e:2}},
+  {id:"T1.7",ph:1,name:"Add Firebase config as GitHub Secrets; configure deploy.yml injection",days:1,deps:["T1.2","T1.3"],crit:true,reqs:"M-24",sched:{s:1.5,e:2.5}},
+  {id:"T1.8",ph:1,name:"Create project directory structure and placeholder files",days:0.5,deps:["T1.1"],crit:false,reqs:"Spec Sec 2",sched:{s:0.5,e:1}},
+  {id:"T1.9",ph:1,name:"Verify end-to-end deployment: push to main → GitHub Pages live",days:0.5,deps:["T1.7","T1.8"],crit:true,reqs:"M-24",sched:{s:2.5,e:3}},
+  {id:"T2.1",ph:2,name:"Author exercises.js — all 11 exercises, all progressions, all descriptions",days:2,deps:["T1.8"],crit:true,reqs:"M-01 to M-05, M-13",sched:{s:1,e:3}},
+  {id:"T2.2",ph:2,name:"Author firebase-config.js with placeholder tokens",days:0.5,deps:["T1.7"],crit:true,reqs:"M-15",sched:{s:2.5,e:3}},
+  {id:"T2.3",ph:2,name:"Implement auth.js — Firebase Anonymous Auth, localStorage UID fallback",days:1,deps:["T2.2"],crit:true,reqs:"M-16,M-17",sched:{s:3,e:4}},
+  {id:"T2.4",ph:2,name:"Implement firestore.js — all Firestore read/write functions",days:2,deps:["T2.3"],crit:true,reqs:"M-15,M-18",sched:{s:4,e:6}},
+  {id:"T2.5",ph:2,name:"Implement scheduler.js — getApplicableExercises(), day-of-week rules",days:1,deps:["T2.1"],crit:true,reqs:"M-10",sched:{s:3,e:4}},
+  {id:"T2.6",ph:2,name:"Implement progression.js — read/write progressions, max validation",days:1,deps:["T2.4"],crit:false,reqs:"M-12,M-13,M-14",sched:{s:6,e:7}},
+  {id:"T2.7",ph:2,name:"Unit test: scheduler.js (all 7 days, verify correct exercise sets)",days:1,deps:["T2.5"],crit:true,reqs:"M-10",sched:{s:4,e:5}},
+  {id:"T2.8",ph:2,name:"Unit test: progression.js (boundary values, max progression enforcement)",days:0.5,deps:["T2.6"],crit:false,reqs:"M-12,M-13",sched:{s:7,e:7.5}},
+  {id:"T2.9",ph:2,name:"Integration test: auth + Firestore read/write round-trip",days:1,deps:["T2.4"],crit:true,reqs:"M-15,M-16",sched:{s:6,e:7}},
+  {id:"T3.1",ph:3,name:"Implement index.html shell, css/styles.css — mobile-first layout",days:1,deps:["T1.8"],crit:true,reqs:"M-23",sched:{s:1,e:2}},
+  {id:"T3.2",ph:3,name:"Implement ui.js — screen switching, toast notifications, loading spinner",days:1,deps:["T3.1"],crit:true,reqs:"Spec Sec 5",sched:{s:2,e:3}},
+  {id:"T3.3",ph:3,name:"Implement app.js — startup sequence (Steps 1–9 per Spec Sec 6.1)",days:1.5,deps:["T2.4","T2.5","T3.2"],crit:true,reqs:"M-18, Spec 6.1",sched:{s:7,e:8.5}},
+  {id:"T3.4",ph:3,name:"Implement bottom navigation bar (Today / History / Progress tabs)",days:0.5,deps:["T3.2"],crit:false,reqs:"Spec Sec 5.5",sched:{s:3,e:3.5}},
+  {id:"T3.5",ph:3,name:"Implement screen-log: exercise cards, expand/collapse, frequency badges",days:2,deps:["T3.3","T2.1"],crit:true,reqs:"M-01 to M-05",sched:{s:8.5,e:10.5}},
+  {id:"T3.6",ph:3,name:"Implement screen-log: time-of-day selector with device clock pre-selection",days:1,deps:["T3.5"],crit:false,reqs:"M-09",sched:{s:10.5,e:11.5}},
+  {id:"T3.7",ph:3,name:"Implement logger.js — log entry capture, validation, Firestore save",days:1.5,deps:["T3.5","T2.4"],crit:true,reqs:"M-06 to M-08",sched:{s:10.5,e:12}},
+  {id:"T3.8",ph:3,name:"Implement edit/update existing log entry (same day)",days:1,deps:["T3.7"],crit:false,reqs:"S-02",sched:{s:12,e:13}},
+  {id:"T3.9",ph:3,name:"Implement screen-progressions: all 11 cards, Advance button, max guard",days:1.5,deps:["T3.2","T2.6"],crit:false,reqs:"M-12 to M-14",sched:{s:7.5,e:9}},
+  {id:"T3.10",ph:3,name:"Implement history.js — 30-day table, sticky row header, horizontal scroll",days:2,deps:["T3.2","T2.4","T2.5"],crit:false,reqs:"M-19 to M-22",sched:{s:7,e:9}},
+  {id:"T3.11",ph:3,name:"Implement css/table.css — table layout, cell formatting, responsive scroll",days:1,deps:["T3.10"],crit:false,reqs:"M-19 to M-22, S-05",sched:{s:9,e:10}},
+  {id:"T4.1",ph:4,name:"Recovery day counter — calculate and display 'Day N' on screen-log",days:0.5,deps:["T3.3"],crit:false,reqs:"M-11, S-03",sched:{s:8.5,e:9}},
+  {id:"T4.2",ph:4,name:"Completion indicator — green/amber badge for today's log status",days:0.5,deps:["T3.7"],crit:false,reqs:"S-01",sched:{s:12,e:12.5}},
+  {id:"T4.3",ph:4,name:"Offline banner — detect navigator.onLine, show/hide amber banner",days:0.5,deps:["T3.2"],crit:false,reqs:"S-04",sched:{s:3,e:3.5}},
+  {id:"T4.4",ph:4,name:"Enable Firestore offline persistence (enablePersistence())",days:0.5,deps:["T2.4"],crit:false,reqs:"S-04",sched:{s:6,e:6.5}},
+  {id:"T4.5",ph:4,name:"Cross-browser testing: iOS Safari, Android Chrome, Desktop browsers",days:1.5,deps:["T3.10","T3.9","T3.7"],crit:true,reqs:"M-23",sched:{s:13,e:14.5}},
+  {id:"T4.6",ph:4,name:"Mobile layout review: 320px min-width, tap targets, font sizes",days:1,deps:["T4.5"],crit:false,reqs:"M-23, NFR",sched:{s:14.5,e:15.5}},
+  {id:"T4.7",ph:4,name:"End-to-end functional test: full patient session through history view",days:1,deps:["T4.5"],crit:true,reqs:"All M-reqs",sched:{s:14.5,e:15.5}},
+  {id:"T4.8",ph:4,name:"Bug fixes from T4.5–T4.7 testing",days:1.5,deps:["T4.7"],crit:true,reqs:"All",sched:{s:15.5,e:17}},
+  {id:"T4.9",ph:4,name:"Author README.md — setup instructions, Firebase config steps",days:0.5,deps:["T1.9"],crit:false,reqs:"Spec Sec 2",sched:{s:3,e:3.5}},
+  {id:"T5.1",ph:5,name:"Final deployment to GitHub Pages — verify live URL",days:0.5,deps:["T4.8"],crit:true,reqs:"M-24",sched:{s:17,e:17.5}},
+  {id:"T5.2",ph:5,name:"Smoke test on live deployed URL — all screens, Firestore writes",days:0.5,deps:["T5.1"],crit:true,reqs:"M-24",sched:{s:17.5,e:18}},
+  {id:"T5.3",ph:5,name:"Patient handover — share URL, walkthrough of all screens",days:0.5,deps:["T5.2"],crit:true,reqs:"All",sched:{s:18,e:18.5}},
+  {id:"T5.4",ph:5,name:"Archive project documents to repo /docs folder",days:0.5,deps:["T5.1"],crit:false,reqs:"—",sched:{s:17.5,e:18}},
+];
+
+const AI_PROMPTS = {
+  "T1.1":"Create a new public GitHub repository named 'postopExerciseTracker' under the account perelgut. The repository should be initialised with a README.md and a .gitignore for Node.js projects. Do not add any source files yet.",
+  "T1.2":"Write a GitHub Actions workflow file at .github/workflows/deploy.yml that triggers on push to the main branch and deploys the repository root to GitHub Pages using peaceiris/actions-gh-pages@v4. Include a sed step to inject Firebase config values from GitHub Secrets (FIREBASE_API_KEY, FIREBASE_AUTH_DOMAIN, FIREBASE_PROJECT_ID, FIREBASE_STORAGE_BUCKET, FIREBASE_MESSAGING_SENDER_ID, FIREBASE_APP_ID) into js/firebase-config.js before deploying.",
+  "T1.3":"[Manual Firebase Console step] Go to https://console.firebase.google.com, sign in with perelgut@gmail.com, create a new project named 'postopExerciseTracker'. Disable Google Analytics. Register a Web App named 'postop-tracker' and save the firebaseConfig object.",
+  "T1.4":"[Manual Firebase Console step] In the Firebase project, go to Firestore Database → Create database → Production mode. Select region: northamerica-northeast2 (Toronto). WARNING: this selection is permanent.",
+  "T1.5":"[Manual Firebase Console step] In the Firebase project, go to Authentication → Sign-in method → Anonymous → Enable. Save.",
+  "T1.6":"In the Firebase project Firestore console → Rules, replace the default rules with security rules that allow a user to read/write only their own data scoped by their anonymous UID. See Functional Specification Section 8.2 for the exact rules.",
+  "T1.7":"Update the GitHub Actions deploy.yml to inject all 6 Firebase config fields from GitHub repository secrets into js/firebase-config.js using sed commands before deployment. Each placeholder follows the pattern __FIREBASE_FIELDNAME__. Provide instructions for adding the 6 secrets to GitHub repository settings.",
+  "T1.8":"Create the full directory and file structure for the postopExerciseTracker project per Functional Specification Section 2. All JS files should contain a single comment indicating their purpose. firebase-config.js should export a firebaseConfig object with 6 fields set to __FIREBASE_FIELDNAME__ placeholders.",
+  "T1.9":"[Manual verification] Commit and push placeholder files to main. Verify the GitHub Actions workflow runs and the site loads at https://perelgut.github.io/postopExerciseTracker/.",
+  "T2.1":"Write the complete exercises.js file exporting a const EXERCISES array with 11 exercise objects. Each has: id (7-17), name, displayName ('Ex N: Name'), frequency ('Daily'|'Alt1'|'Alt2'), maxProgression, and progressions[] (each with level, description, type, defaultCount, defaultRepeats). Exercise 7 must have 4 progressions (0-3). Use exact data from Functional Specification Section 3.1.",
+  "T2.2":"Write js/firebase-config.js that imports Firebase SDK modules (app, auth, firestore) and initialises the Firebase app using a firebaseConfig object with 6 placeholder values in the format __FIREBASE_FIELDNAME__. Export the initialised auth and db (Firestore) instances.",
+  "T2.3":"Write js/auth.js: (1) call Firebase signInAnonymously() on init, (2) store UID in localStorage as 'postop_uid', (3) on reload use Firebase auth state persistence, (4) export getCurrentUID() returning the current anonymous UID, (5) handle auth errors with user-facing message.",
+  "T2.4":"Write js/firestore.js exporting: saveLogEntry(uid, dateStr, entry), updateLogEntry(uid, dateStr, exerciseId, updatedEntry), getLogs(uid, dateStrings[]), getProfile(uid), saveProfile(uid, data), getProgressions(uid), updateProgression(uid, exerciseId, level). Follow schema in Functional Specification Section 3.2. Enable offline persistence. Return {success, error} objects.",
+  "T2.5":"Write js/scheduler.js exporting getApplicableExercises(date, exercises). ALT1_DAYS=[1,3,5] (Mon/Wed/Fri) → Daily+Alt1; ALT2_DAYS=[2,4,6] (Tue/Thu/Sat) → Daily+Alt2; Sunday(0) → Daily only.",
+  "T2.6":"Write js/progression.js with in-memory progressions cache. Export: getCurrentProgression(exerciseId), advanceProgression(exerciseId, uid) with maxProgression validation, initProgressions(uid) loading from Firestore.",
+  "T2.7":"[Manual test] In browser console, test scheduler.js for all 7 days. Call getApplicableExercises(testDate, EXERCISES) for each day and verify IDs match Functional Specification Section 4.1.",
+  "T2.8":"[Manual test] Test progression.js: attempt to advance an exercise at maxProgression, verify it is blocked. Verify all 11 exercises initialise at progression 0.",
+  "T2.9":"[Manual integration test] In browser console: (1) verify signInAnonymously() returns a UID, (2) verify UID in localStorage, (3) call saveLogEntry() with test data, verify in Firebase Console, (4) call getLogs() and verify data returned.",
+  "T3.1":"Write index.html (SPA shell with 4 screen divs: screen-loading, screen-log, screen-history, screen-progressions; all hidden except screen-loading; Firebase SDK from CDN; all js/ modules in dependency order) and css/styles.css (mobile-first, max-width 600px centred, card styles, bottom nav bar, base font 16px minimum).",
+  "T3.2":"Write js/ui.js exporting: showScreen(screenId), toast(message, type), showLoading(), hideLoading(), toggleDescription(exerciseId).",
+  "T3.3":"Write js/app.js implementing the 9-step startup sequence from Functional Specification Section 6.1. Handle each step's failure as specified.",
+  "T3.4":"Add bottom navigation bar HTML to index.html (three buttons: Today, History, Progress). Add CSS to styles.css: fixed bottom, full width, flex, min tap height 56px, active tab highlighted.",
+  "T3.5":"Write renderExerciseCards(exercises, todayLog, progressions) in js/logger.js. Each card: displayName (tappable), frequency badge (Daily=green, Alt1=blue, Alt2=orange), progression badge. Tap name calls ui.js toggleDescription(). Logged exercises show green tick and values.",
+  "T3.6":"Add time-of-day selector to screen-log: a <select> with 8 options from M-09. Write getTimeOfDayBucket(hour) mapping device hour (0-23) to the correct bucket string. Pre-select on render.",
+  "T3.7":"Write log entry capture in js/logger.js: read count and repeats, validate as non-negative integers, build entry object, call firestore.js saveLogEntry(), on success show green tick and toast, on failure show error toast.",
+  "T3.8":"Add edit mode to js/logger.js: tapping a logged card reopens it pre-filled with saved values and shows 'Update' button. On Update call firestore.js updateLogEntry(). On success return to logged state with new values.",
+  "T3.9":"Write screen-progressions UI in index.html and js/progression.js: one card per all 11 exercises (all visible regardless of day), each showing displayName, current level, full description, and Advance button. Advance disabled at maxProgression. Tapping Advance calls advanceProgression() and re-renders the card.",
+  "T3.10":"Write js/history.js: buildHistoryTable(uid) fetches last 30 days via getLogs(), builds 30×11 table DOM. Each cell: if exercise not applicable that day → dimmed dot; no entry → '—'; skipped (count=0) → '0'; else three lines: 'P{level}', '{count}{r|s}', '×{repeats}'.",
+  "T3.11":"Write css/table.css: date column sticky (position:sticky, left:0), table container overflow-x:auto, each cell compact 3-line format, minimum cell width 52px, column headers visible.",
+  "T4.1":"Add recovery day counter to screen-log in js/app.js: recoveryDay = Math.floor((today - day1InMs) / 86400000) + 1. Display as 'Day N of recovery'.",
+  "T4.2":"Add completion indicator badge to screen-log header: green checkmark if all applicable exercises logged (count > 0), amber ring if incomplete. Updates dynamically after each Log/Update.",
+  "T4.3":"Add offline detection to js/ui.js: listen for window 'online'/'offline' events. Show amber banner 'You are offline. Exercises will sync when reconnected.' on offline; hide banner and show 'Back online — syncing.' toast on reconnect.",
+  "T4.4":"Add enableIndexedDbPersistence(db) to js/firestore.js after Firestore init. Handle 'failed-precondition' (multiple tabs) and 'unimplemented' (unsupported browser) errors gracefully with console warning only.",
+  "T4.5":"[Manual test] Test on: iPhone Safari (iOS 15+), Android Chrome, Desktop Chrome, Desktop Firefox, Desktop Edge. Document all layout/functional issues found.",
+  "T4.6":"Based on T4.5 issues, update css/styles.css and css/table.css: all tap targets ≥44×44px, base font ≥16px, no horizontal overflow on screen-log or screen-progressions, history table scrolls correctly.",
+  "T4.7":"[Manual E2E test] Full patient session: open app first time (Day 1 set), log all today's exercises, advance one progression, check history table, simulate offline + log, re-enable network + verify sync.",
+  "T4.8":"Fix all bugs from T4.5–T4.7. Each fix is a targeted edit to the relevant file. Re-verify each fixed test case.",
+  "T4.9":"Write README.md: project description, live URL, Firebase 7-step setup, GitHub Secrets 6-step setup, local dev instructions, file structure overview.",
+  "T5.1":"[Deploy] Ensure all code committed and pushed to main. Verify GitHub Actions completes. Confirm https://perelgut.github.io/postopExerciseTracker/ loads.",
+  "T5.2":"[Smoke test] On live URL verify: no console errors, today's exercises display, logging saves to Firestore, progression screen loads all 11, history table loads.",
+  "T5.3":"[Handover] Share URL with patient. Walk through: log daily exercises, advance progression, view history, offline banner meaning.",
+  "T5.4":"Create /docs folder in repo, copy Requirements_v1.1.docx, FunctionalSpec_v1.1.docx, ProjectPlan_v1.0.docx into it. Commit and push.",
+};
+
+// ── STORAGE ────────────────────────────────────────────────────────────────────
+const STORAGE_KEY = 'postopTracker_v1';
+
+function loadData() {
+  try {
+    const raw = localStorage.getItem(STORAGE_KEY);
+    return raw ? JSON.parse(raw) : {};
+  } catch(e) { return {}; }
+}
+
+function saveData(data) {
+  try { localStorage.setItem(STORAGE_KEY, JSON.stringify(data)); } catch(e) {}
+}
+
+let taskData = loadData();
+
+function getTaskRecord(id) {
+  return taskData[id] || { status: 'not-started', completedDate: '', startedDate: '' };
+}
+
+function setTaskRecord(id, updates) {
+  taskData[id] = { ...getTaskRecord(id), ...updates };
+  saveData(taskData);
+}
+
+// ── STATUS CALCULATION ─────────────────────────────────────────────────────────
+// Project start date = today if not set
+function getProjectStart() {
+  const stored = localStorage.getItem('postopTracker_projectStart');
+  if (stored) return new Date(stored);
+  const today = new Date();
+  today.setHours(0,0,0,0);
+  localStorage.setItem('postopTracker_projectStart', today.toISOString());
+  return today;
+}
+
+const PROJECT_START = getProjectStart();
+
+function dayTargetDate(days) {
+  const d = new Date(PROJECT_START);
+  d.setDate(d.getDate() + Math.ceil(days));
+  return d;
+}
+
+function calcStatus(task, record) {
+  if (record.status === 'in-progress') return 'in-progress';
+  if (!record.completedDate) return 'not-started';
+
+  const completed = new Date(record.completedDate);
+  completed.setHours(0,0,0,0);
+  const target = dayTargetDate(task.sched.e);
+  target.setHours(0,0,0,0);
+
+  const diffDays = Math.round((completed - target) / 86400000);
+  if (diffDays <= 0) return 'early';
+  if (diffDays === 1) return '1-day-late';
+  return 'late';
+}
+
+function statusLabel(s) {
+  return { 'not-started':'Not Started','in-progress':'In Progress','early':'Done ✓','on-time':'Done ✓','1-day-late':'1 Day Late','late':'Late' }[s] || s;
+}
+function statusClass(s) {
+  return { 'not-started':'status-not-started','in-progress':'status-in-progress','early':'status-early','on-time':'status-on-time','1-day-late':'status-1-day-late','late':'status-late' }[s] || 'status-not-started';
+}
+
+// ── RENDER ─────────────────────────────────────────────────────────────────────
+let currentFilter = 'all';
+let currentModalId = null;
+
+function render() {
+  updateHeader();
+  renderPhases();
+  updateProgressBar();
+}
+
+function updateHeader() {
+  const done = TASKS.filter(t => { const r=getTaskRecord(t.id); const s=calcStatus(t,r); return s==='early'||s==='on-time'||s==='1-day-late'||s==='late'; }).length;
+  const inProg = TASKS.filter(t => getTaskRecord(t.id).status === 'in-progress').length;
+  const late = TASKS.filter(t => { const r=getTaskRecord(t.id); return calcStatus(t,r)==='late'||calcStatus(t,r)==='1-day-late'; }).length;
+  const crit = TASKS.filter(t => t.crit).length;
+
+  document.getElementById('headerStats').innerHTML = `
+    <div class="stat-pill"><span class="dot" style="background:#6b7280"></span>${TASKS.length} Tasks</div>
+    <div class="stat-pill"><span class="dot" style="background:#22c55e"></span>${done} Done</div>
+    <div class="stat-pill"><span class="dot" style="background:#60a5fa"></span>${inProg} In Progress</div>
+    ${late > 0 ? `<div class="stat-pill"><span class="dot" style="background:#ef4444"></span>${late} Late</div>` : ''}
+    <div class="stat-pill"><span class="dot" style="background:#ef4444"></span>${crit} Critical</div>
+  `;
+  document.getElementById('footerRight').textContent = `Last updated: ${new Date().toLocaleString()}`;
+}
+
+function updateProgressBar() {
+  const done = TASKS.filter(t => { const r=getTaskRecord(t.id); const s=calcStatus(t,r); return ['early','on-time','1-day-late','late'].includes(s); }).length;
+  const pct = Math.round((done / TASKS.length) * 100);
+  document.getElementById('progressFill').style.width = pct + '%';
+  document.getElementById('progressPct').textContent = pct + '%';
+}
+
+function filterTasks(tasks) {
+  if (currentFilter === 'all') return tasks;
+  if (currentFilter === 'crit') return tasks.filter(t => t.crit);
+  if (currentFilter === 'incomplete') return tasks.filter(t => {
+    const s = calcStatus(t, getTaskRecord(t.id));
+    return !['early','on-time','1-day-late','late'].includes(s);
+  });
+  if (currentFilter === 'late') return tasks.filter(t => {
+    const s = calcStatus(t, getTaskRecord(t.id));
+    return s === 'late' || s === '1-day-late';
+  });
+  return tasks.filter(t => String(t.ph) === currentFilter);
+}
+
+function renderPhases() {
+  const container = document.getElementById('phaseSections');
+  container.innerHTML = '';
+
+  const phases = currentFilter === 'all' || currentFilter === 'crit' || currentFilter === 'incomplete' || currentFilter === 'late'
+    ? [1,2,3,4,5]
+    : [parseInt(currentFilter)];
+
+  phases.forEach(phNum => {
+    const ph = PHASES[phNum];
+    const tasks = filterTasks(TASKS.filter(t => t.ph === phNum));
+    if (tasks.length === 0) return;
+
+    const phaseDone = tasks.filter(t => { const s=calcStatus(t,getTaskRecord(t.id)); return ['early','on-time','1-day-late','late'].includes(s); }).length;
+    const totalPhase = TASKS.filter(t => t.ph === phNum).length;
+
+    const section = document.createElement('div');
+    section.className = 'phase-section';
+
+    section.innerHTML = `
+      <div class="phase-header" style="background:${ph.bg}22;border-color:${ph.color}">
+        <span class="phase-num" style="color:${ph.color}">Phase ${phNum}</span>
+        <span class="phase-title" style="color:${ph.color}">${ph.name.replace(/Phase \d+ — /,'')}</span>
+        <span class="phase-meta" style="color:${ph.color}">${phaseDone}/${totalPhase} done</span>
+      </div>
+      <table class="task-table">
+        <thead>
+          <tr>
+            <th style="width:60px">ID</th>
+            <th>Task</th>
+            <th class="center" style="width:55px">Days</th>
+            <th class="center" style="width:120px">Depends On</th>
+            <th class="center" style="width:100px">Scheduled</th>
+            <th class="center" style="width:130px">Completed</th>
+            <th class="center" style="width:115px">Status</th>
+          </tr>
+        </thead>
+        <tbody id="tbody-ph${phNum}"></tbody>
+      </table>
+    `;
+    container.appendChild(section);
+
+    const tbody = section.querySelector(`#tbody-ph${phNum}`);
+    tasks.forEach(t => {
+      const record = getTaskRecord(t.id);
+      const status = calcStatus(t, record);
+      const tr = document.createElement('tr');
+      tr.className = `task-row${t.crit ? ' crit-row' : ''}`;
+      tr.onclick = () => openModal(t.id);
+      tr.innerHTML = `
+        <td class="task-id ${t.crit?'crit':''}" style="color:${t.crit?'var(--crit)':ph.color}">${t.id}</td>
+        <td class="task-name">
+          ${t.name}
+          ${t.crit ? '<span class="crit-badge">CRIT</span>' : ''}
+        </td>
+        <td class="task-days">${t.days}d</td>
+        <td class="task-deps">${t.deps.join(', ')||'—'}</td>
+        <td class="task-sched">D${t.sched.s}→D${t.sched.e}</td>
+        <td onclick="event.stopPropagation()">
+          <input type="date" class="date-input" id="date-${t.id}"
+            value="${record.completedDate||''}"
+            onchange="setCompletedDate('${t.id}', this.value)"
+          >
+        </td>
+        <td class="center" style="text-align:center">
+          <span class="status-badge ${statusClass(status)}" onclick="event.stopPropagation();cycleStatus('${t.id}')">
+            ${statusLabel(status)}
+          </span>
+        </td>
+      `;
+      tbody.appendChild(tr);
+    });
+  });
+}
+
+function setCompletedDate(id, val) {
+  setTaskRecord(id, { completedDate: val, status: val ? 'done' : getTaskRecord(id).status });
+  render();
+}
+
+function cycleStatus(id) {
+  const record = getTaskRecord(id);
+  const current = record.status;
+  let next;
+  if (current === 'not-started') next = 'in-progress';
+  else if (current === 'in-progress') next = 'not-started';
+  else next = current; // completed status controlled by date
+  setTaskRecord(id, { status: next });
+  render();
+}
+
+// ── MODAL ──────────────────────────────────────────────────────────────────────
+function openModal(id) {
+  const t = TASKS.find(t => t.id === id);
+  if (!t) return;
+  currentModalId = id;
+  const ph = PHASES[t.ph];
+  const record = getTaskRecord(id);
+  const status = calcStatus(t, record);
+
+  document.getElementById('modalId').textContent = t.id;
+  document.getElementById('modalId').style.color = t.crit ? 'var(--crit)' : ph.color;
+  document.getElementById('modalName').textContent = t.name;
+
+  const target = dayTargetDate(t.sched.e);
+
+  document.getElementById('modalBody').innerHTML = `
+    <div class="modal-field">
+      <label>Phase</label>
+      <div class="val" style="color:${ph.color}">${ph.name}</div>
+    </div>
+    <div class="modal-field">
+      <label>Requirement IDs</label>
+      <div class="val mono-val">${t.reqs}</div>
+    </div>
+    <div class="modal-field">
+      <label>Duration / Scheduled</label>
+      <div class="val mono-val">${t.days} day(s) &mdash; Day ${t.sched.s} → Day ${t.sched.e} &mdash; Target: ${target.toLocaleDateString('en-CA')}</div>
+    </div>
+    <div class="modal-field">
+      <label>Dependencies</label>
+      <div class="val mono-val">${t.deps.join(', ')||'None — can start immediately'}</div>
+    </div>
+    <div class="modal-field">
+      <label>Critical Path</label>
+      <div class="val" style="color:${t.crit?'var(--crit)':'var(--muted)'}">${t.crit?'⚑ YES — delays this task delay the entire project':'No'}</div>
+    </div>
+    <div class="modal-field">
+      <label>Current Status</label>
+      <div class="val"><span class="status-badge ${statusClass(status)}">${statusLabel(status)}</span></div>
+    </div>
+    <div class="modal-field">
+      <label>Completion Date</label>
+      <input type="date" class="date-input" style="width:160px" id="modal-date-${id}"
+        value="${record.completedDate||''}"
+        onchange="setCompletedDate('${id}', this.value)">
+    </div>
+    <div class="modal-field">
+      <label>AI Implementation Prompt</label>
+      <div class="prompt-box">${AI_PROMPTS[id]||'See Project Plan document for full prompt.'}</div>
+    </div>
+  `;
+  document.getElementById('modalOverlay').classList.add('open');
+}
+
+function closeModal(e) {
+  if (e.target === document.getElementById('modalOverlay')) closeModalDirect();
+}
+function closeModalDirect() {
+  document.getElementById('modalOverlay').classList.remove('open');
+  currentModalId = null;
+}
+
+function markInProgress() {
+  if (!currentModalId) return;
+  setTaskRecord(currentModalId, { status: 'in-progress' });
+  render();
+  closeModalDirect();
+}
+
+// ── FILTER ─────────────────────────────────────────────────────────────────────
+function setFilter(btn, val) {
+  document.querySelectorAll('.filter-btn').forEach(b => b.classList.remove('active'));
+  btn.classList.add('active');
+  currentFilter = val;
+  render();
+}
+
+// ── KEYBOARD ───────────────────────────────────────────────────────────────────
+document.addEventListener('keydown', e => {
+  if (e.key === 'Escape') closeModalDirect();
+});
+
+// ── INIT ───────────────────────────────────────────────────────────────────────
+render();
+</script>
+</body>
+</html>

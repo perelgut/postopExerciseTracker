@@ -1,0 +1,1 @@
+// Firestore operations — all database read/write functions. No Firestore calls outside this module.

@@ -1,0 +1,1 @@
+// Daily logging — renders exercise cards, captures input, saves log entries to Firestore.

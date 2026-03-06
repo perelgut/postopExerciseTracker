@@ -1,0 +1,1 @@
+// Static exercise data — exports EXERCISES array with all 11 exercises and progressions.
