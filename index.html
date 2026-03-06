@@ -14,22 +14,33 @@
   <div id="screen-progressions" style="display:none"></div>
 
   <script type="module">
-    const { auth, db }           = await import('./js/firebase-config.js');
-    const { initAuth, getCurrentUID } = await import('./js/auth.js');
-    const { saveProfile, getProfile,
-            saveLogEntry, getLog,
-            getProgressions, updateProgression,
-            todayStr }           = await import('./js/firestore.js');
+    try {
+      const { auth, db } = await import('./js/firebase-config.js');
+      console.log('firebase-config OK');
 
-    window._test = {
-      auth, db, initAuth, getCurrentUID,
-      saveProfile, getProfile,
-      saveLogEntry, getLog,
-      getProgressions, updateProgression,
-      todayStr
-    };
+      const { initAuth, getCurrentUID } = await import('./js/auth.js');
+      console.log('auth.js OK');
 
-    console.log('Firebase modules loaded. Run integration tests via window._test');
+      const { saveProfile, getProfile,
+              saveLogEntry, getLog,
+              getProgressions, updateProgression,
+              todayStr } = await import('./js/firestore.js');
+      console.log('firestore.js OK');
+
+      window._test = {
+        auth, db, initAuth, getCurrentUID,
+        saveProfile, getProfile,
+        saveLogEntry, getLog,
+        getProgressions, updateProgression,
+        todayStr
+      };
+
+      console.log('Firebase modules loaded. Run integration tests via window._test');
+
+    } catch(err) {
+      console.error('Module load error:', err.message);
+      console.error(err);
+    }
   </script>
 
 </body>
