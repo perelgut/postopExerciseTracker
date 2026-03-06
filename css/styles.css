@@ -1,1 +1,859 @@
-/* Global styles — mobile-first responsive layout, cards, navigation bar. */
+/* Global styles — mobile-first responsive layout, cards, navigation bar. *//* ═══════════════════════════════════════════════════════════════
+   POST-OP EXERCISE TRACKER — Global Styles
+   Design: Refined medical utility
+   Mobile-first. Tested breakpoints: 320px → 2560px
+   ═══════════════════════════════════════════════════════════════ */
+
+/* ── Design Tokens ──────────────────────────────────────────── */
+:root {
+  /* Colour palette */
+  --clr-primary:        #0d4f6e;   /* deep teal — brand, header */
+  --clr-primary-mid:    #1a6b8a;   /* mid teal — hover states   */
+  --clr-primary-light:  #e8f4f8;   /* pale teal — card bg tint  */
+  --clr-accent:         #2a9d8f;   /* green-teal — success      */
+  --clr-accent-light:   #e6f5f3;   /* pale accent — logged card */
+  --clr-warn:           #e07b39;   /* amber — offline, pending  */
+  --clr-warn-light:     #fdf1e7;
+  --clr-error:          #c0392b;
+  --clr-error-light:    #fdecea;
+
+  /* Frequency badge colours */
+  --clr-daily:          #1a6b8a;
+  --clr-daily-bg:       #e0f0f6;
+  --clr-alt1:           #6b4f9e;   /* purple */
+  --clr-alt1-bg:        #f0ebfb;
+  --clr-alt2:           #b7600a;   /* amber-brown */
+  --clr-alt2-bg:        #fdf0e3;
+
+  /* Neutral scale */
+  --clr-bg:             #f5f7f8;   /* page background             */
+  --clr-surface:        #ffffff;   /* card / panel surface        */
+  --clr-border:         #d4dde3;   /* subtle borders              */
+  --clr-border-strong:  #b0bec8;
+  --clr-text-primary:   #1a2a33;   /* headings, labels            */
+  --clr-text-body:      #334351;   /* body copy                   */
+  --clr-text-muted:     #637585;   /* supporting text             */
+  --clr-text-disabled:  #a0b0bc;
+
+  /* Typography */
+  --font-base: 'Segoe UI', 'Helvetica Neue', Arial, sans-serif;
+
+  /* Spacing scale (4px base) */
+  --sp-1:  4px;
+  --sp-2:  8px;
+  --sp-3:  12px;
+  --sp-4:  16px;
+  --sp-5:  20px;
+  --sp-6:  24px;
+  --sp-8:  32px;
+  --sp-10: 40px;
+
+  /* Radii */
+  --radius-sm:  6px;
+  --radius-md:  10px;
+  --radius-lg:  16px;
+  --radius-xl:  22px;
+
+  /* Shadows */
+  --shadow-card: 0 1px 4px rgba(13,79,110,0.08), 0 2px 12px rgba(13,79,110,0.06);
+  --shadow-nav:  0 -2px 12px rgba(13,79,110,0.10);
+
+  /* Layout */
+  --nav-height:    64px;
+  --header-height: 88px;
+  --content-max:   640px;          /* max width for content column */
+
+  /* Transitions */
+  --transition-fast: 150ms ease;
+  --transition-mid:  250ms ease;
+}
+
+/* ── Reset & Base ───────────────────────────────────────────── */
+*, *::before, *::after {
+  box-sizing: border-box;
+  margin: 0;
+  padding: 0;
+}
+
+html {
+  font-size: 16px;
+  -webkit-text-size-adjust: 100%;
+  scroll-behavior: smooth;
+}
+
+body {
+  font-family: var(--font-base);
+  font-size: 1rem;
+  line-height: 1.5;
+  color: var(--clr-text-body);
+  background: var(--clr-bg);
+  min-height: 100dvh;
+  min-height: 100vh;   /* fallback */
+  overflow-x: hidden;
+  -webkit-font-smoothing: antialiased;
+}
+
+button {
+  font-family: inherit;
+  cursor: pointer;
+  border: none;
+  background: none;
+}
+
+button:disabled {
+  cursor: not-allowed;
+}
+
+select, input {
+  font-family: inherit;
+  font-size: 1rem;
+}
+
+/* ── Screen Shell ───────────────────────────────────────────── */
+/*
+  Layout model:
+    body
+      └── .screen (full viewport height, flex column)
+            ├── .app-header   (fixed height)
+            ├── .offline-banner (conditionally shown)
+            ├── .screen-body  (flex-grow: 1, scrollable)
+      └── .bottom-nav (fixed, bottom)
+      └── #toast (fixed overlay)
+*/
+
+.screen {
+  display: flex;
+  flex-direction: column;
+  min-height: 100dvh;
+  min-height: 100vh;
+  padding-bottom: var(--nav-height);
+}
+
+/* ── App Header ─────────────────────────────────────────────── */
+.app-header {
+  background: var(--clr-primary);
+  color: #ffffff;
+  padding: var(--sp-4) var(--sp-5);
+  padding-top: max(var(--sp-4), env(safe-area-inset-top));
+  flex-shrink: 0;
+}
+
+.header-meta {
+  display: flex;
+  align-items: center;
+  gap: var(--sp-3);
+  margin-bottom: var(--sp-2);
+}
+
+.header-title-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.app-title {
+  font-size: 1.375rem;
+  font-weight: 700;
+  letter-spacing: -0.01em;
+  color: #ffffff;
+}
+
+.hdr-date {
+  font-size: 0.8125rem;
+  color: rgba(255,255,255,0.75);
+  font-weight: 400;
+}
+
+/* Recovery day badge */
+.day-badge {
+  display: inline-flex;
+  align-items: center;
+  background: rgba(255,255,255,0.18);
+  color: #ffffff;
+  font-size: 0.75rem;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  padding: 2px var(--sp-2);
+  border-radius: var(--radius-xl);
+  border: 1px solid rgba(255,255,255,0.25);
+}
+
+/* Completion badge — shown in header */
+.completion-badge {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 36px;
+  height: 36px;
+  border-radius: 50%;
+  flex-shrink: 0;
+  transition: var(--transition-mid);
+}
+
+.completion-badge--pending {
+  color: rgba(255,255,255,0.55);
+}
+
+.completion-badge--done {
+  background: var(--clr-accent);
+  color: #ffffff;
+  box-shadow: 0 0 0 3px rgba(42,157,143,0.35);
+}
+
+.completion-badge--done svg circle {
+  display: none;
+}
+
+/* ── Offline Banner ─────────────────────────────────────────── */
+.offline-banner {
+  display: flex;
+  align-items: center;
+  gap: var(--sp-2);
+  background: var(--clr-warn-light);
+  color: var(--clr-warn);
+  font-size: 0.8125rem;
+  font-weight: 500;
+  padding: var(--sp-2) var(--sp-5);
+  border-bottom: 1px solid #f0c090;
+  flex-shrink: 0;
+}
+
+/* ── Screen Body ────────────────────────────────────────────── */
+.screen-body {
+  flex: 1;
+  overflow-y: auto;
+  overflow-x: hidden;
+  padding: var(--sp-5);
+  max-width: var(--content-max);
+  width: 100%;
+  margin: 0 auto;
+  /* Smooth momentum scrolling on iOS */
+  -webkit-overflow-scrolling: touch;
+}
+
+.screen-body--flush {
+  padding: 0;
+  max-width: 100%;
+}
+
+/* ── Time-of-Day Selector ───────────────────────────────────── */
+.tod-bar {
+  display: flex;
+  align-items: center;
+  gap: var(--sp-3);
+  background: var(--clr-surface);
+  border: 1px solid var(--clr-border);
+  border-radius: var(--radius-md);
+  padding: var(--sp-3) var(--sp-4);
+  margin-bottom: var(--sp-4);
+  box-shadow: var(--shadow-card);
+}
+
+.tod-label {
+  font-size: 0.8125rem;
+  font-weight: 600;
+  color: var(--clr-text-muted);
+  white-space: nowrap;
+  flex-shrink: 0;
+}
+
+.tod-select {
+  flex: 1;
+  border: none;
+  background: transparent;
+  color: var(--clr-text-primary);
+  font-weight: 600;
+  font-size: 0.9375rem;
+  padding: 0;
+  appearance: none;
+  -webkit-appearance: none;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='8' viewBox='0 0 12 8'%3E%3Cpath d='M1 1l5 5 5-5' stroke='%23637585' stroke-width='1.8' stroke-linecap='round' stroke-linejoin='round' fill='none'/%3E%3C/svg%3E");
+  background-repeat: no-repeat;
+  background-position: right 0 center;
+  padding-right: var(--sp-5);
+  cursor: pointer;
+  min-height: 44px;
+}
+
+.tod-select:focus {
+  outline: 2px solid var(--clr-primary);
+  outline-offset: 2px;
+  border-radius: var(--radius-sm);
+}
+
+/* ── Exercise List ──────────────────────────────────────────── */
+.exercise-list {
+  display: flex;
+  flex-direction: column;
+  gap: var(--sp-3);
+}
+
+/* ── Exercise Card ──────────────────────────────────────────── */
+.exercise-card {
+  background: var(--clr-surface);
+  border: 1.5px solid var(--clr-border);
+  border-radius: var(--radius-lg);
+  box-shadow: var(--shadow-card);
+  overflow: hidden;
+  transition: border-color var(--transition-fast), box-shadow var(--transition-fast);
+}
+
+.exercise-card:focus-within {
+  border-color: var(--clr-primary-mid);
+}
+
+/* Logged state */
+.exercise-card--logged {
+  border-color: var(--clr-accent);
+  background: var(--clr-accent-light);
+}
+
+/* Card Header (always visible, tappable) */
+.card-header {
+  display: flex;
+  align-items: center;
+  gap: var(--sp-3);
+  padding: var(--sp-4);
+  cursor: pointer;
+  min-height: 64px;
+  user-select: none;
+  -webkit-tap-highlight-color: transparent;
+  transition: background var(--transition-fast);
+}
+
+.card-header:hover {
+  background: var(--clr-primary-light);
+}
+
+.exercise-card--logged .card-header:hover {
+  background: rgba(42,157,143,0.08);
+}
+
+/* Expand/Collapse chevron */
+.card-chevron {
+  flex-shrink: 0;
+  width: 20px;
+  height: 20px;
+  color: var(--clr-text-muted);
+  transition: transform var(--transition-mid);
+  margin-left: auto;
+}
+
+.exercise-card--open .card-chevron {
+  transform: rotate(180deg);
+}
+
+/* Exercise name and badges */
+.card-title-group {
+  flex: 1;
+  min-width: 0;
+}
+
+.card-exercise-name {
+  font-size: 1rem;
+  font-weight: 700;
+  color: var(--clr-text-primary);
+  line-height: 1.3;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.exercise-card--logged .card-exercise-name {
+  color: #166252;
+}
+
+.card-badges {
+  display: flex;
+  align-items: center;
+  gap: var(--sp-2);
+  margin-top: var(--sp-1);
+  flex-wrap: wrap;
+}
+
+/* Frequency badge */
+.freq-badge {
+  font-size: 0.6875rem;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  padding: 2px 7px;
+  border-radius: var(--radius-xl);
+}
+
+.freq-badge--daily {
+  color: var(--clr-daily);
+  background: var(--clr-daily-bg);
+}
+
+.freq-badge--alt1 {
+  color: var(--clr-alt1);
+  background: var(--clr-alt1-bg);
+}
+
+.freq-badge--alt2 {
+  color: var(--clr-alt2);
+  background: var(--clr-alt2-bg);
+}
+
+/* Progression badge */
+.prog-badge {
+  font-size: 0.6875rem;
+  font-weight: 600;
+  color: var(--clr-text-muted);
+  background: #eef2f5;
+  padding: 2px 7px;
+  border-radius: var(--radius-xl);
+}
+
+/* Logged summary (replaces badges when logged) */
+.logged-summary {
+  font-size: 0.8125rem;
+  font-weight: 600;
+  color: #166252;
+  background: rgba(42,157,143,0.12);
+  padding: 2px 8px;
+  border-radius: var(--radius-xl);
+}
+
+/* Logged checkmark icon */
+.card-check {
+  flex-shrink: 0;
+  width: 28px;
+  height: 28px;
+  background: var(--clr-accent);
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: #ffffff;
+}
+
+/* Card Body (collapsible) */
+.card-body {
+  display: none;
+  padding: 0 var(--sp-4) var(--sp-4);
+  border-top: 1px solid var(--clr-border);
+}
+
+.exercise-card--logged .card-body {
+  border-top-color: rgba(42,157,143,0.2);
+}
+
+.exercise-card--open .card-body {
+  display: block;
+}
+
+/* Exercise description text */
+.card-description {
+  font-size: 0.875rem;
+  color: var(--clr-text-body);
+  line-height: 1.6;
+  margin: var(--sp-3) 0 var(--sp-4);
+  padding: var(--sp-3);
+  background: var(--clr-bg);
+  border-radius: var(--radius-sm);
+  border-left: 3px solid var(--clr-primary-mid);
+}
+
+/* Log form inside card */
+.log-form {
+  display: flex;
+  flex-direction: column;
+  gap: var(--sp-3);
+}
+
+.log-inputs {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: var(--sp-3);
+}
+
+.input-group {
+  display: flex;
+  flex-direction: column;
+  gap: var(--sp-1);
+}
+
+.input-label {
+  font-size: 0.75rem;
+  font-weight: 600;
+  color: var(--clr-text-muted);
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+}
+
+.input-field {
+  border: 1.5px solid var(--clr-border);
+  border-radius: var(--radius-sm);
+  padding: var(--sp-2) var(--sp-3);
+  font-size: 1.0625rem;
+  font-weight: 600;
+  color: var(--clr-text-primary);
+  background: var(--clr-surface);
+  min-height: 44px;
+  text-align: center;
+  transition: border-color var(--transition-fast), box-shadow var(--transition-fast);
+}
+
+.input-field:focus {
+  outline: none;
+  border-color: var(--clr-primary);
+  box-shadow: 0 0 0 3px rgba(13,79,110,0.12);
+}
+
+.input-field::-webkit-inner-spin-button,
+.input-field::-webkit-outer-spin-button {
+  opacity: 1;
+}
+
+.input-unit {
+  font-size: 0.75rem;
+  color: var(--clr-text-muted);
+  text-align: center;
+  margin-top: 2px;
+}
+
+/* Log / Update button */
+.btn-log {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: var(--sp-2);
+  width: 100%;
+  min-height: 48px;
+  background: var(--clr-primary);
+  color: #ffffff;
+  font-size: 0.9375rem;
+  font-weight: 700;
+  border-radius: var(--radius-md);
+  transition: background var(--transition-fast), transform var(--transition-fast);
+  -webkit-tap-highlight-color: transparent;
+}
+
+.btn-log:hover:not(:disabled) {
+  background: var(--clr-primary-mid);
+}
+
+.btn-log:active:not(:disabled) {
+  transform: scale(0.98);
+}
+
+.btn-log:disabled {
+  background: var(--clr-text-disabled);
+}
+
+.btn-log--update {
+  background: var(--clr-accent);
+}
+
+.btn-log--update:hover:not(:disabled) {
+  background: #238a7d;
+}
+
+/* ── Progression Screen Cards ───────────────────────────────── */
+.progression-card {
+  background: var(--clr-surface);
+  border: 1.5px solid var(--clr-border);
+  border-radius: var(--radius-lg);
+  box-shadow: var(--shadow-card);
+  padding: var(--sp-4);
+  display: flex;
+  flex-direction: column;
+  gap: var(--sp-3);
+}
+
+.prog-card-header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: var(--sp-3);
+}
+
+.prog-card-name {
+  font-size: 1rem;
+  font-weight: 700;
+  color: var(--clr-text-primary);
+  line-height: 1.3;
+}
+
+.prog-level-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  font-size: 0.8125rem;
+  font-weight: 700;
+  color: var(--clr-primary);
+  background: var(--clr-primary-light);
+  padding: 3px var(--sp-3);
+  border-radius: var(--radius-xl);
+  white-space: nowrap;
+  flex-shrink: 0;
+}
+
+.prog-level-chip--maxed {
+  color: var(--clr-accent);
+  background: var(--clr-accent-light);
+}
+
+.prog-description {
+  font-size: 0.875rem;
+  color: var(--clr-text-body);
+  line-height: 1.6;
+  padding: var(--sp-3);
+  background: var(--clr-bg);
+  border-radius: var(--radius-sm);
+  border-left: 3px solid var(--clr-primary-mid);
+}
+
+.btn-advance {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: var(--sp-2);
+  width: 100%;
+  min-height: 48px;
+  background: var(--clr-primary);
+  color: #ffffff;
+  font-size: 0.9375rem;
+  font-weight: 700;
+  border-radius: var(--radius-md);
+  transition: background var(--transition-fast), transform var(--transition-fast);
+  -webkit-tap-highlight-color: transparent;
+}
+
+.btn-advance:hover:not(:disabled) {
+  background: var(--clr-primary-mid);
+}
+
+.btn-advance:active:not(:disabled) {
+  transform: scale(0.98);
+}
+
+.btn-advance:disabled {
+  background: var(--clr-bg);
+  color: var(--clr-text-disabled);
+  border: 1.5px solid var(--clr-border);
+}
+
+/* ── Bottom Navigation ──────────────────────────────────────── */
+.bottom-nav {
+  position: fixed;
+  bottom: 0;
+  left: 0;
+  right: 0;
+  height: var(--nav-height);
+  padding-bottom: env(safe-area-inset-bottom);
+  background: var(--clr-surface);
+  box-shadow: var(--shadow-nav);
+  display: flex;
+  align-items: stretch;
+  z-index: 100;
+  border-top: 1px solid var(--clr-border);
+}
+
+.nav-btn {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 3px;
+  color: var(--clr-text-muted);
+  font-size: 0.6875rem;
+  font-weight: 600;
+  letter-spacing: 0.02em;
+  transition: color var(--transition-fast);
+  min-height: 44px;
+  -webkit-tap-highlight-color: transparent;
+  border-radius: 0;
+  padding-bottom: 2px;
+}
+
+.nav-btn:hover {
+  color: var(--clr-primary);
+}
+
+.nav-btn--active {
+  color: var(--clr-primary);
+}
+
+.nav-icon {
+  width: 24px;
+  height: 24px;
+  stroke-width: 1.8;
+  transition: transform var(--transition-fast);
+}
+
+.nav-btn--active .nav-icon {
+  stroke-width: 2.2;
+}
+
+.nav-btn:active .nav-icon {
+  transform: scale(0.88);
+}
+
+.nav-label {
+  line-height: 1;
+}
+
+/* ── Toast Notification ─────────────────────────────────────── */
+.toast {
+  position: fixed;
+  bottom: calc(var(--nav-height) + var(--sp-4));
+  left: 50%;
+  transform: translateX(-50%) translateY(8px);
+  background: var(--clr-text-primary);
+  color: #ffffff;
+  font-size: 0.875rem;
+  font-weight: 600;
+  padding: var(--sp-3) var(--sp-5);
+  border-radius: var(--radius-xl);
+  box-shadow: 0 4px 20px rgba(0,0,0,0.22);
+  white-space: nowrap;
+  pointer-events: none;
+  opacity: 0;
+  transition: opacity 200ms ease, transform 200ms ease;
+  z-index: 200;
+  max-width: calc(100vw - var(--sp-8));
+}
+
+.toast--visible {
+  opacity: 1;
+  transform: translateX(-50%) translateY(0);
+}
+
+.toast--success { background: var(--clr-accent); }
+.toast--error   { background: var(--clr-error); }
+.toast--warn    { background: var(--clr-warn); }
+
+/* ── Loading Screen ─────────────────────────────────────────── */
+.screen-loading-state {
+  align-items: center;
+  justify-content: center;
+  background: var(--clr-primary);
+  min-height: 100dvh;
+  padding-bottom: 0;
+}
+
+.loading-inner {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: var(--sp-5);
+}
+
+.loading-logo {
+  animation: spin-pulse 1.4s linear infinite;
+}
+
+@keyframes spin-pulse {
+  0%   { transform: rotate(0deg); }
+  100% { transform: rotate(360deg); }
+}
+
+/* Stop the checkmark from spinning with the arc */
+.loading-logo .spinner-check {
+  animation: counter-spin 1.4s linear infinite;
+}
+
+@keyframes counter-spin {
+  0%   { transform-origin: 28px 28px; transform: rotate(0deg); }
+  100% { transform-origin: 28px 28px; transform: rotate(-360deg); }
+}
+
+.spinner-arc {
+  stroke: #ffffff;
+  opacity: 0.9;
+}
+
+.spinner-check {
+  stroke: rgba(255,255,255,0.4);
+}
+
+.loading-label {
+  font-size: 0.9375rem;
+  font-weight: 500;
+  color: rgba(255,255,255,0.75);
+  letter-spacing: 0.04em;
+}
+
+/* ── Empty State ────────────────────────────────────────────── */
+.empty-state {
+  text-align: center;
+  color: var(--clr-text-muted);
+  font-size: 0.9375rem;
+  padding: var(--sp-10) var(--sp-6);
+}
+
+/* ── Error Banner (fatal init error) ───────────────────────── */
+.error-banner {
+  background: var(--clr-error-light);
+  border: 1px solid #f5c6c0;
+  border-radius: var(--radius-md);
+  padding: var(--sp-4);
+  color: var(--clr-error);
+  font-size: 0.9rem;
+  font-weight: 500;
+  margin: var(--sp-5);
+  text-align: center;
+}
+
+/* ── Utility Classes ────────────────────────────────────────── */
+.visually-hidden {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip: rect(0,0,0,0);
+  white-space: nowrap;
+}
+
+/* ── Responsive: Tablet / Desktop ──────────────────────────── */
+@media (min-width: 600px) {
+  .app-header {
+    padding: var(--sp-5) var(--sp-8);
+  }
+
+  .screen-body {
+    padding: var(--sp-6) var(--sp-8);
+  }
+
+  .app-title {
+    font-size: 1.5rem;
+  }
+
+  .bottom-nav {
+    max-width: 640px;
+    left: 50%;
+    transform: translateX(-50%);
+    border-left: 1px solid var(--clr-border);
+    border-right: 1px solid var(--clr-border);
+    border-top-left-radius: var(--radius-lg);
+    border-top-right-radius: var(--radius-lg);
+  }
+}
+
+@media (min-width: 960px) {
+  /* On wide screens give the content column some breathing room */
+  .screen-body {
+    padding: var(--sp-8) var(--sp-6);
+  }
+
+  .exercise-card:hover .card-header {
+    background: var(--clr-primary-light);
+  }
+}
+
+/* ── Focus Visible (keyboard nav) ──────────────────────────── */
+:focus-visible {
+  outline: 2px solid var(--clr-primary);
+  outline-offset: 2px;
+  border-radius: var(--radius-sm);
+}
+
+/* Suppress focus ring for mouse/touch */
+:focus:not(:focus-visible) {
+  outline: none;
+}
