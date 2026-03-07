@@ -664,6 +664,56 @@ select, input {
   border: 1.5px solid var(--clr-border);
 }
 
+/* Progression card: name + frequency badge stacked vertically */
+.prog-name-group {
+  display: flex;
+  flex-direction: column;
+  gap: var(--sp-1);
+  min-width: 0;
+}
+
+/* Action button row: Revert (left) + Advance (right) */
+.prog-card-actions {
+  display: grid;
+  grid-template-columns: 1fr 2fr;
+  gap: var(--sp-2);
+}
+
+/* Revert button — outlined secondary style */
+.btn-revert {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: var(--sp-1);
+  width: 100%;
+  min-height: 48px;
+  background: transparent;
+  color: var(--clr-text-muted);
+  font-size: 0.875rem;
+  font-weight: 600;
+  border: 1.5px solid var(--clr-border);
+  border-radius: var(--radius-md);
+  transition: background var(--transition-fast), color var(--transition-fast),
+              border-color var(--transition-fast);
+  -webkit-tap-highlight-color: transparent;
+}
+
+.btn-revert:hover:not(:disabled) {
+  background: var(--clr-bg);
+  color: var(--clr-text-primary);
+  border-color: var(--clr-text-muted);
+}
+
+.btn-revert:active:not(:disabled) {
+  transform: scale(0.98);
+}
+
+.btn-revert:disabled {
+  color: var(--clr-text-disabled);
+  border-color: var(--clr-border);
+  cursor: not-allowed;
+}
+
 /* ── Bottom Navigation ──────────────────────────────────────── */
 .bottom-nav {
   position: fixed;

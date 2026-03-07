@@ -1093,9 +1093,92 @@ window._timeOfDayModule = {
 ```
 
 
----
+## MODULE: progressions-ui.js (T3.9)
 
-## PHASE STATUS SUMMARY
+```
+FILE:           js/progressions-ui.js
+SOURCE STATUS:  DELIVERED T3.9 — written against verified sources
+VERIFIED FROM:  index.html, styles.css, progression.js, exercises.js — all confirmed
+TASK:           T3.9 — COMPLETE
+```
+
+### PURPOSE
+```
+Renders one card per exercise (all 12, regardless of today's schedule) into
+#progression-list. Each card shows the current level, description, and two
+action buttons: Revert (go down one level) and Advance (go up one level).
+Advance is disabled when at maxProgression; Revert is disabled when at level 0.
+```
+
+### IMPORTS
+```javascript
+import { getExerciseProgressionSummary, setLevel } from './progression.js';
+import { showToast }                               from './ui.js';
+import { EXERCISES }                               from './exercises.js';
+```
+
+### TRIGGER
+```
+window 'app:ready' CustomEvent — renders list on startup.
+window._progressionsModule.refresh() — re-renders on nav tap.
+```
+
+### DOM TARGET
+```
+#progression-list  — injection container (verified in index.html)
+                     role="list", class="exercise-list"
+```
+
+### CARD ELEMENT IDs (keyed by exerciseId)
+```
+#prog-card-{id}      — outer article element
+#prog-chip-{id}      — level chip (updated in-place on advance/revert)
+#prog-desc-{id}      — description paragraph (updated in-place)
+#prog-advance-{id}   — Advance button
+#prog-revert-{id}    — Revert button
+```
+
+### CSS CLASSES USED
+```
+.progression-card          — card wrapper
+.prog-card-header          — flex row: name group (left) + level chip (right)
+.prog-name-group           — flex column: displayName + frequency badge (NEW)
+.prog-card-name            — exercise display name
+.freq-badge                — base frequency badge
+.freq-badge--daily/alt1/alt2
+.prog-level-chip           — level indicator chip (blue when can advance)
+.prog-level-chip--maxed    — modifier when at max or single-level (green)
+.prog-description          — description text block
+.prog-card-actions         — 2-column grid: Revert (1fr) + Advance (2fr) (NEW)
+.btn-advance               — primary advance button
+.btn-revert                — outlined revert button (NEW)
+.empty-state               — fallback if EXERCISES is empty
+```
+
+### BEHAVIOR
+```
+All 12 exercises rendered in EXERCISES array order (Daily first, then Alt1, then Alt2).
+On Advance click: calls setLevel(id, currentLevel + 1)
+On Revert click:  calls setLevel(id, currentLevel - 1)
+On success:       _refreshCard(id) updates chip, description, button states in-place.
+On failure:       _refreshCard(id) restores prior state, showToast error shown.
+Double-tap guard: _submitting Map prevents concurrent writes per card.
+```
+
+### MODULE INTERFACE
+```javascript
+window._progressionsModule = {
+  refresh()   // Re-renders all cards from current window._app state.
+              // Called by app.js nav wiring when user taps Progressions nav button.
+}
+```
+
+### SCRIPT TAG (add to index.html)
+```html
+<script type="module" src="js/progressions-ui.js"></script>
+```
+
+---
 
 ```
 PHASE 1 — Project Planning
@@ -1109,14 +1192,18 @@ PHASE 2 — Core Modules
   T2.5  scheduler.js          COMPLETE ✓  (getDayNumber added for T3.3)
   T2.6  progression.js        COMPLETE ✓
 
-PHASE 3 — UI Shell
-  T3.1  index.html + styles.css    COMPLETE ✓  (committed to repo)
-  T3.2  ui.js                      COMPLETE ✓
-  T3.3  app.js                     COMPLETE ✓
-  T3.4  logger.js                  COMPLETE ✓  (per-card tod select + Minutes type)
-  T3.5  history.js                 COMPLETE ✓
-  T3.6  time-of-day.js             COMPLETE ✓  (revised: named export, display-only global)
-  T3.9  progressions-ui.js         NOT STARTED  ← NEXT
+PHASE 3 — UI Shell  ★ ALL TASKS COMPLETE ★
+  T3.1   index.html + styles.css    COMPLETE ✓  (committed to repo)
+  T3.2   ui.js                      COMPLETE ✓
+  T3.3   app.js                     COMPLETE ✓
+  T3.4   bottom nav bar             COMPLETE ✓  (built into T3.1/T3.3)
+  T3.5   exercise cards/logger      COMPLETE ✓  (in logger.js)
+  T3.6   time-of-day.js             COMPLETE ✓  (named export; per-card selects)
+  T3.7   log entry capture          COMPLETE ✓  (in logger.js)
+  T3.8   edit/update log entry      COMPLETE ✓  (in logger.js)
+  T3.9   progressions-ui.js         COMPLETE ✓
+  T3.10  history.js                 COMPLETE ✓
+  T3.11  table.css                  COMPLETE ✓  (built into T3.1)
 ```
 
 ---
@@ -1128,15 +1215,26 @@ FS-OI-2   Repo visibility (public or private)    PENDING
 FS-OI-3   Exact repo name capitalization         PENDING
 ```
 
-### PENDING COMMITS (files ready, not yet pushed)
+### PENDING COMMITS (all Phase 3 — ready to push)
 ```
-js/exercises.js          — Walk: type 'Minutes', defaultCount 20
-js/logger.js             — per-card time-of-day select, Minutes type branch
-js/time-of-day.js        — named export getTimeBucket, global select is display-only
-js/history.js            — T3.5 delivery
+js/exercises.js              — Walk: type 'Minutes', defaultCount 20
+js/logger.js                 — per-card time-of-day select, Minutes type branch
+js/time-of-day.js            — named export getTimeBucket, global select display-only
+js/history.js                — T3.10 delivery
+js/progressions-ui.js        — T3.9 NEW FILE
+css/styles.css               — tod-group/tod-select + prog-card-actions/btn-revert
 docs/module-api-reference.md — this document
 ```
 
+### index.html SCRIPT TAGS (current state — verify before commit)
+```html
+<script type="module" src="js/app.js"></script>
+<script type="module" src="js/logger.js"></script>
+<script type="module" src="js/history.js"></script>
+<script type="module" src="js/time-of-day.js"></script>
+<script type="module" src="js/progressions-ui.js"></script>   ← ADD THIS LINE
+```
+
 ---
-*Document last updated: 2026-03-06 (revision 2). Covers T2.1–T2.6, T3.1–T3.6.*
+*Document last updated: 2026-03-06 (revision 3). Phase 3 complete. Next: Phase 4.*
 *When in doubt: ask the human to paste the current file. Do not infer.*
