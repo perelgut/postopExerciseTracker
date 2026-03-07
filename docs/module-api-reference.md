@@ -330,12 +330,25 @@ EXERCISES  — array of 12 ExerciseObject items
 {
   level:          number,   // 0-based index, 0 = entry level
   description:    string,   // full exercise instruction text
-  type:           string,   // 'Rep' | 'Time'
-                            // Rep  = count is repetitions
-                            // Time = count is seconds
-  defaultCount:   number,   // default reps or seconds
+  type:           string,   // 'Rep' | 'Time' | 'Minutes'
+                            // Rep     = count is repetitions,  unit: 'reps'
+                            // Time    = count is seconds,      unit: 's'
+                            // Minutes = count is minutes,      unit: 'min'
+                            // ⚠ Walk (id:0) uses 'Minutes'. All other exercises
+                            //   use 'Rep' or 'Time'. Do NOT assume 'Time' means
+                            //   seconds for all exercises.
+  defaultCount:   number,   // default reps, seconds, or minutes
   defaultRepeats: number,   // default number of sets
 }
+```
+
+#### Walk exercise specifics (id: 0)
+```
+type:          'Minutes'   ← CHANGED from 'Time' (Option A decision)
+defaultCount:  20          ← CHANGED from 60 (goal is 60 min/day; start at 20)
+defaultRepeats: 1
+description:   'Walk anywhere for a continuous time. Start at 20 minutes
+                and build to 60 minutes eventually.'
 ```
 
 ### FREQUENCY SCHEDULE
@@ -714,8 +727,13 @@ On click:                 showScreen(screenId)
 
 ```
 FILE:           js/logger.js
-SOURCE STATUS:  DELIVERED T3.4 — written in this conversation against verified sources
+SOURCE STATUS:  DELIVERED T3.4, REVISED — per-card time-of-day + Minutes type
 VERIFIED FROM:  index.html, styles.css, firestore.js, progression.js, app.js — all confirmed
+CHANGES:        1. Each exercise card now has its own time-of-day <select> (#tod-select-{id})
+                   Auto-populated from device clock via getTimeBucket(). Patient can override.
+                   timeOfDay in LogEntry comes from this per-card select, NOT #time-of-day.
+                2. 'Minutes' type branch added: label='Minutes', unit='min', summaryUnit='min'
+                3. Imports getTimeBucket from time-of-day.js
 ```
 
 ### IMPORTS
@@ -723,6 +741,7 @@ VERIFIED FROM:  index.html, styles.css, firestore.js, progression.js, app.js —
 import { saveLogEntry, updateLogEntry, todayStr } from './firestore.js';
 import { showToast }                               from './ui.js';
 import { getProgressionData }                      from './progression.js';
+import { getTimeBucket }                           from './time-of-day.js';
 ```
 
 ### TRIGGER
@@ -735,7 +754,8 @@ Renders cards immediately on receipt of this event.
 ### DOM TARGETS (verified against index.html)
 ```
 #exercise-list   — card injection container, role="list"
-#time-of-day     — time-of-day select, read on every Log/Update click
+#time-of-day     — global header select — DISPLAY ONLY, never read during saves
+                   Each card has its own #tod-select-{id} for the actual logged value.
 ```
 
 ### CARD ELEMENT IDs (dynamically generated, keyed by exerciseId)
@@ -748,7 +768,8 @@ Renders cards immediately on receipt of this event.
 #card-desc-{id}         — description paragraph
 #log-form-{id}          — log form div
 #count-{id}             — count number input
-#repeats-{id}           — repeats number input
+#repeats-{id}           — sets number input
+#tod-select-{id}        — per-card time-of-day <select> (NEW — auto-populated from clock)
 #log-error-{id}         — inline error paragraph (hidden until validation fails)
 #log-btn-{id}           — Log / Update button
 ```
@@ -783,16 +804,32 @@ CARD BODY (collapsible):
 
 LOG FORM:
   .log-form                   — flex column container
-  .log-inputs                 — 2-column CSS grid
+  .log-inputs                 — 2-column CSS grid (count + sets inputs)
   .input-group                — label + input + unit hint wrapper
   .input-label                — small uppercase label
   .input-field                — styled number input (min-height: 44px, centered text)
-  .input-unit                 — small unit hint below input (e.g. "reps", "seconds")
+  .input-unit                 — small unit hint below input (e.g. "reps", "min")
+  .tod-group                  — wrapper div for per-card time-of-day label + select
+  .tod-select                 — the per-card time-of-day <select> element
   .btn-log                    — primary log button (dark teal)
   .btn-log--update            — modifier: green teal for update mode
 
 UTILITY:
   .empty-state                — centred muted paragraph (no exercises / inline errors)
+```
+
+### TYPE → UNIT MAPPING
+```
+'Rep'     → label: 'Reps',    unit: 'reps', summaryUnit: 'r'
+'Time'    → label: 'Seconds', unit: 'seconds', summaryUnit: 's'
+'Minutes' → label: 'Minutes', unit: 'min',     summaryUnit: 'min'
+```
+
+### SUMMARY TEXT FORMAT
+```
+'Rep'     → "15r × 3 · Morning"
+'Time'    → "45s × 3 · Afternoon"
+'Minutes' → "35min × 1 · Early Morning"
 ```
 
 ### READS FROM window._app
@@ -879,9 +916,182 @@ screen-progressions HIDDEN    — style="display:none"
 ```html
 <script type="module" src="js/app.js"></script>
 <script type="module" src="js/logger.js"></script>    <!-- T3.4: added -->
-<!-- history.js and progressions-ui.js must also be added as script tags when delivered. -->
+<script type="module" src="js/history.js"></script>         <!-- T3.5: add when delivered -->
+<script type="module" src="js/time-of-day.js"></script>    <!-- T3.6: add when delivered -->
+<!-- progressions-ui.js must also be added as script tag when delivered. -->
 <!-- Confirm with human before assuming any script tag has been added. -->
 ```
+
+---
+
+## MODULE: history.js (T3.5)
+
+```
+FILE:           js/history.js
+SOURCE STATUS:  DELIVERED T3.5 — written against verified sources
+VERIFIED FROM:  table.css, styles.css, index.html, firestore.js, scheduler.js,
+                exercises.js — all confirmed
+```
+
+### IMPORTS
+```javascript
+import { getLogs, lastNDates, todayStr } from './firestore.js';
+import { isApplicableOn }                from './scheduler.js';
+import { EXERCISES }                     from './exercises.js';
+```
+
+### TRIGGER
+```
+window._historyModule.refresh() — called by app.js nav wiring when History tab tapped
+First call fetches from Firestore. Subsequent calls use cache unless date has rolled over.
+```
+
+### DOM TARGET
+```
+#history-table-wrap   — table injected here (scroll container already in index.html)
+```
+
+### SHORT COLUMN HEADER NAMES (verified against exercises.js names)
+```javascript
+const SHORT_NAME = {
+  0:  'Walk',
+  7:  'Bridge',
+  8:  'Clam Shell',
+  9:  'Flexor Str.',    // Hip Flexor Strengthening — disambiguated from id:16
+  10: 'Hip Abduct.',
+  11: 'Squat',
+  12: 'Crab Walk',
+  13: 'Leg Abduct.',
+  14: 'Marching',
+  15: 'Hip Bend.',
+  16: 'Flexor Stch.',   // Hip Flexor Stretch — disambiguated from id:9
+  17: 'Hamstring',
+};
+// Full displayName set as th.title for hover tooltip
+```
+
+### CSS CLASSES USED (verified against table.css)
+```
+.history-table          — <table> element
+th.col-date             — sticky date column header
+th.col-ex               — exercise column headers (min-width: 72px)
+tr.row-today            — green tint on today's row
+td.cell-date            — sticky left date column
+.date-line1             — bold "Fri 06"
+.date-line2             — muted "Mar 2026"
+td.cell-ex              — exercise data cell
+
+CELL CONTENT (mutually exclusive):
+.cell-na / .cell-na-inner   — not applicable that day (dot)
+.cell-empty                 — applicable but not logged (dash)
+.cell-skipped               — logged with count=0
+.cell-logged                — logged with data
+  .cell-prog                — "L{level}" blue chip
+  .cell-count               — "{count}r" or "{count}s"
+  .cell-repeats             — "×{repeats}"
+
+.empty-state                — loading/error message
+```
+
+### CACHING BEHAVIOUR
+```
+_cachedLogs:    { dateStr: LogDoc|null } — stored after first successful fetch
+_cachedDateStr: todayStr() at fetch time — used to detect day rollover
+Cache invalidated: when todayStr() !== _cachedDateStr (date rolled over)
+Cache NOT invalidated: when user logs an exercise (history shows committed data)
+Manual invalidation: window._historyModule.invalidateCache()
+```
+
+### MODULE INTERFACE
+```javascript
+window._historyModule = {
+  refresh()          // renders or re-renders table (uses cache if valid)
+  invalidateCache()  // clears cache, forces fresh fetch on next refresh()
+}
+```
+
+### COLUMN VISIBILITY RULE
+```
+An exercise column is shown only if isApplicableOn() returns true for at least
+ONE of the 30 dates in the window. In practice all 12 exercises are always shown
+since the 30-day window always includes Mon, Wed, Fri, Tue, Thu, Sat, and Sun.
+```
+
+### DATE PARSING
+```
+ALWAYS use _parseLocalDate(dateStr) → new Date(y, m-1, d)
+NEVER use new Date(dateStr) — that treats the string as UTC midnight, giving
+wrong day-of-week in non-UTC timezones.
+```
+
+
+---
+
+## MODULE: time-of-day.js (T3.6)
+
+```
+FILE:           js/time-of-day.js
+SOURCE STATUS:  DELIVERED T3.6, REVISED — now exports getTimeBucket as named export
+VERIFIED FROM:  index.html option values confirmed
+TASK:           T3.6 — COMPLETE (revised this conversation)
+CHANGES:        getTimeBucket() is now a named ES module export so logger.js can import it.
+                Global #time-of-day select is updated as a DISPLAY INDICATOR only.
+                Per-card time-of-day selects in logger.js are the authoritative source
+                for the timeOfDay value stored in each LogEntry.
+```
+
+### PURPOSE
+```
+PRIMARY:   Exports getTimeBucket(hour) so logger.js can auto-populate per-card selects.
+SECONDARY: Updates global #time-of-day select in the header as a display indicator.
+           The global select is NOT read during log saves.
+```
+
+### NAMED EXPORT
+```javascript
+export function getTimeBucket(hour)
+// hour: integer 0–23
+// returns: one of the TIME_OF_DAY_OPTIONS strings (see below)
+// Used by: logger.js import { getTimeBucket } from './time-of-day.js'
+```
+
+### TIME BUCKET MAP (verified against index.html option values)
+```javascript
+hour 6–8        → 'Early Morning'
+hour 9–11       → 'Morning'
+hour 12         → 'Lunch'
+hour 13–14      → 'Early Afternoon'
+hour 15–16      → 'Afternoon'
+hour 17–18      → 'Early Evening'
+hour 19–20      → 'Evening'
+hour 21–23, 0–5 → 'Late'
+```
+
+### TIME_OF_DAY_OPTIONS (complete list — order matches index.html)
+```
+'Early Morning' | 'Morning' | 'Lunch' | 'Early Afternoon' |
+'Afternoon' | 'Early Evening' | 'Evening' | 'Late'
+```
+
+### TRIGGER
+```
+window 'app:ready' event — fires _updateGlobalSelect() once on startup
+```
+
+### DOM TARGET
+```
+#time-of-day — global <select> in header — DISPLAY INDICATOR only
+select.dataset.autoSet — tracks last auto-set value to detect manual override
+```
+
+### MODULE INTERFACE
+```javascript
+window._timeOfDayModule = {
+  refresh()              // re-runs global select update, respects manual override
+  getBucket(hour)        // returns bucket string for hour 0–23
+}
+```
+
 
 ---
 
@@ -895,18 +1105,18 @@ PHASE 2 — Core Modules
   T2.1  firebase-config.js    COMPLETE ✓
   T2.2  auth.js               COMPLETE ✓
   T2.3  firestore.js          COMPLETE ✓
-  T2.4  exercises.js          COMPLETE ✓  (export line added at line 312)
+  T2.4  exercises.js          COMPLETE ✓  (Walk type→'Minutes', defaultCount→20)
   T2.5  scheduler.js          COMPLETE ✓  (getDayNumber added for T3.3)
-  T2.6  progression.js        COMPLETE ✓   (delivered this conversation)
+  T2.6  progression.js        COMPLETE ✓
 
 PHASE 3 — UI Shell
   T3.1  index.html + styles.css    COMPLETE ✓  (committed to repo)
-  T3.2  ui.js                      COMPLETE ✓  (delivered this conversation)
-  T3.3  app.js                     COMPLETE ✓  (delivered this conversation)
-  T3.4  logger.js                  COMPLETE ✓   (delivered this conversation)
-  T3.5  history.js                 NOT STARTED
-  T3.6  progressions-ui.js         NOT STARTED
-  T3.7+                            NOT STARTED
+  T3.2  ui.js                      COMPLETE ✓
+  T3.3  app.js                     COMPLETE ✓
+  T3.4  logger.js                  COMPLETE ✓  (per-card tod select + Minutes type)
+  T3.5  history.js                 COMPLETE ✓
+  T3.6  time-of-day.js             COMPLETE ✓  (revised: named export, display-only global)
+  T3.9  progressions-ui.js         NOT STARTED  ← NEXT
 ```
 
 ---
@@ -914,11 +1124,19 @@ PHASE 3 — UI Shell
 ## OPEN ITEMS
 
 ```
-FS-OI-2   Repo visibility (public or private)              PENDING
-FS-OI-3   Exact repo name capitalization                   PENDING
-FS-OI-4   Time-of-day auto-suggestion behavior (T3.6)      PENDING
+FS-OI-2   Repo visibility (public or private)    PENDING
+FS-OI-3   Exact repo name capitalization         PENDING
+```
+
+### PENDING COMMITS (files ready, not yet pushed)
+```
+js/exercises.js          — Walk: type 'Minutes', defaultCount 20
+js/logger.js             — per-card time-of-day select, Minutes type branch
+js/time-of-day.js        — named export getTimeBucket, global select is display-only
+js/history.js            — T3.5 delivery
+docs/module-api-reference.md — this document
 ```
 
 ---
-*Document last updated: 2026-03-06. Covers T2.1–T2.6, T3.1–T3.4. Update when any module source changes.*
+*Document last updated: 2026-03-06 (revision 2). Covers T2.1–T2.6, T3.1–T3.6.*
 *When in doubt: ask the human to paste the current file. Do not infer.*

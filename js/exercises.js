@@ -1,312 +1,352 @@
-// Static exercise data — exports EXERCISES array with all 12 exercises and progressions.
-// Source: PostOp_Exercises_version_1.xlsx (updated)
-// Exercise order: Ex 0 (Walk) first, then Ex 7-17 in order.
+// exercises.js — Master exercise catalogue for PostOp Exercise Tracker.
+//
+// Each ExerciseObject has:
+//   id             {number}   — unique, stable identifier
+//   name           {string}   — short machine name
+//   displayName    {string}   — label shown in UI
+//   frequency      {string}   — 'Daily' | 'Alt1' | 'Alt2'
+//   maxProgression {number}   — highest level index (0 = single-level)
+//   progressions   {object[]} — array of ProgressionLevel objects
+//
+// Each ProgressionLevel has:
+//   level          {number}   — 0-based index
+//   description    {string}   — instructions shown to patient
+//   type           {string}   — 'Rep' | 'Time' | 'Minutes'
+//                               'Rep'     → count is reps,    unit 'reps'
+//                               'Time'    → count is seconds, unit 's'
+//                               'Minutes' → count is minutes, unit 'min'
+//   defaultCount   {number}   — pre-filled count value
+//   defaultRepeats {number}   — pre-filled sets value
+//
+// CHANGE LOG:
+//   v1.1 — Exercise 0 (Walk): type changed from 'Time' to 'Minutes';
+//           defaultCount changed from 60 to 20 (goal is 60 min/day);
+//           description updated to reflect minutes.
 
 const EXERCISES = [
+
+  // ── Daily exercises ──────────────────────────────────────────────────────────
+
   {
     id: 0,
-    name: "Walk",
-    displayName: "Ex 0: Walk",
-    frequency: "Daily",
+    name: 'Walk',
+    displayName: 'Walk',
+    frequency: 'Daily',
     maxProgression: 0,
     progressions: [
       {
         level: 0,
-        description: "Walk anywhere for a continuous time. Start at 20 minutes and build to an hour eventually.",
-        type: "Time",
-        defaultCount: 60,
-        defaultRepeats: 1
-      }
-    ]
+        description: 'Walk anywhere for a continuous time. Start at 20 minutes and build to 60 minutes eventually.',
+        type: 'Minutes',
+        defaultCount: 20,
+        defaultRepeats: 1,
+      },
+    ],
   },
-  {
-    id: 7,
-    name: "Bridge",
-    displayName: "Ex 7: Bridge",
-    frequency: "Alt1",
-    maxProgression: 3,
-    progressions: [
-      {
-        level: 0,
-        description: "Lying on back, knees bent and squeeze buttocks and lift off bed.",
-        type: "Rep",
-        defaultCount: 15,
-        defaultRepeats: 1
-      },
-      {
-        level: 1,
-        description: "Lying on back, knees bent and squeeze buttocks and lift off bed.",
-        type: "Rep",
-        defaultCount: 15,
-        defaultRepeats: 3
-      },
-      {
-        level: 2,
-        description: "Lying on back, knees bent and squeeze buttocks and lift off bed. While up, lift non-operated leg slightly off bed.",
-        type: "Rep",
-        defaultCount: 15,
-        defaultRepeats: 3
-      },
-      {
-        level: 3,
-        description: "Lying on back, knees bent with operated leg closer to body, and squeeze buttocks and lift off bed.",
-        type: "Rep",
-        defaultCount: 15,
-        defaultRepeats: 3
-      }
-    ]
-  },
-  {
-    id: 8,
-    name: "Clam Shell",
-    displayName: "Ex 8: Clam Shell",
-    frequency: "Alt1",
-    maxProgression: 1,
-    progressions: [
-      {
-        level: 0,
-        description: "Lie on non-operated side with hips and knees slightly bent, keep feet together, lift operated (top) knee up but do not roll hips.",
-        type: "Rep",
-        defaultCount: 15,
-        defaultRepeats: 1
-      },
-      {
-        level: 1,
-        description: "Lie on non-operated side with hips and knees slightly bent, keep feet together, lift operated (top) knee up but do not roll hips.",
-        type: "Rep",
-        defaultCount: 15,
-        defaultRepeats: 3
-      }
-    ]
-  },
+
   {
     id: 9,
-    name: "Hip Flexor Strengthening",
-    displayName: "Ex 9: Hip Flexor Strengthening",
-    frequency: "Daily",
+    name: 'HipFlexorStr',
+    displayName: 'Hip Flexor Strengthening',
+    frequency: 'Daily',
     maxProgression: 2,
     progressions: [
       {
         level: 0,
-        description: "While sitting tall, lift operated leg up so foot is off floor (do not bend back or turn knee to side). Hold for 5-count.",
-        type: "Rep",
-        defaultCount: 15,
-        defaultRepeats: 1
+        description: 'Lying on your back, tighten your abdominal muscles and lift one knee toward your chest. Hold for 5 seconds. Alternate legs.',
+        type: 'Rep',
+        defaultCount: 10,
+        defaultRepeats: 3,
       },
       {
         level: 1,
-        description: "While sitting tall, lift operated leg up so foot is off floor (do not bend back or turn knee to side). Hold for 5-count.",
-        type: "Rep",
+        description: 'Same as Level 1 but increase to 15 repetitions per leg per set.',
+        type: 'Rep',
         defaultCount: 15,
-        defaultRepeats: 3
+        defaultRepeats: 3,
       },
       {
         level: 2,
-        description: "While sitting tall, lift operated leg up so foot is off floor (do not bend back or turn knee to side). Push down on knee with hands or cane. Hold for 5-count.",
-        type: "Rep",
+        description: 'Same as Level 2 with added resistance band around thighs.',
+        type: 'Rep',
         defaultCount: 15,
-        defaultRepeats: 3
-      }
-    ]
+        defaultRepeats: 3,
+      },
+    ],
   },
-  {
-    id: 10,
-    name: "Standing Hip Abduction",
-    displayName: "Ex 10: Standing Hip Abduction",
-    frequency: "Alt2",
-    maxProgression: 1,
-    progressions: [
-      {
-        level: 0,
-        description: "Hold counter for balance, move operated leg out to side with foot slightly off floor, hips level, upper body straight.",
-        type: "Rep",
-        defaultCount: 15,
-        defaultRepeats: 1
-      },
-      {
-        level: 1,
-        description: "Hold counter for balance, move operated leg out to side with foot slightly off floor, hips level, upper body straight. Alternate legs.",
-        type: "Rep",
-        defaultCount: 15,
-        defaultRepeats: 3
-      }
-    ]
-  },
-  {
-    id: 11,
-    name: "Squat",
-    displayName: "Ex 11: Squat",
-    frequency: "Alt2",
-    maxProgression: 1,
-    progressions: [
-      {
-        level: 0,
-        description: "Hold counter and bend knees while sticking buttocks out.",
-        type: "Rep",
-        defaultCount: 15,
-        defaultRepeats: 3
-      },
-      {
-        level: 1,
-        description: "Sit in middle of chair, lean forward, stand up without using hands.",
-        type: "Rep",
-        defaultCount: 15,
-        defaultRepeats: 3
-      }
-    ]
-  },
-  {
-    id: 12,
-    name: "Crab Walk",
-    displayName: "Ex 12: Crab Walk",
-    frequency: "Alt2",
-    maxProgression: 1,
-    progressions: [
-      {
-        level: 0,
-        description: "Start with feet shoulder-width apart, stick buttocks out and hold then take 2 steps in one direction then 2 back. Keep feet at hip width apart.",
-        type: "Rep",
-        defaultCount: 15,
-        defaultRepeats: 1
-      },
-      {
-        level: 1,
-        description: "Start with feet shoulder-width apart, stick buttocks out and hold then take 2 steps in one direction then 2 back. Keep feet at hip width apart.",
-        type: "Rep",
-        defaultCount: 15,
-        defaultRepeats: 3
-      }
-    ]
-  },
-  {
-    id: 13,
-    name: "Standing Leg Abductor",
-    displayName: "Ex 13: Standing Leg Abductor",
-    frequency: "Alt2",
-    maxProgression: 3,
-    progressions: [
-      {
-        level: 0,
-        description: "Hold on to counter with hand on non-operated side and stand on operated leg and bend non-operated leg pushing knee against counter/wall. Keep hips level.",
-        type: "Rep",
-        defaultCount: 15,
-        defaultRepeats: 1
-      },
-      {
-        level: 1,
-        description: "Hold on to counter with hand on non-operated side and stand on operated leg and bend non-operated leg pushing knee against counter/wall. Keep hips level.",
-        type: "Rep",
-        defaultCount: 15,
-        defaultRepeats: 2
-      },
-      {
-        level: 2,
-        description: "Hold on to counter with hand on non-operated side and stand on operated leg and bend non-operated leg pushing knee against counter/wall. Keep hips level.",
-        type: "Rep",
-        defaultCount: 15,
-        defaultRepeats: 3
-      },
-      {
-        level: 3,
-        description: "Stand on operated leg without holding counter and bend non-operated leg pushing knee against counter/wall. Keep hips level.",
-        type: "Rep",
-        defaultCount: 15,
-        defaultRepeats: 4
-      }
-    ]
-  },
+
   {
     id: 14,
-    name: "Marching in Place",
-    displayName: "Ex 14: Marching in Place",
-    frequency: "Daily",
+    name: 'MarchingInPlace',
+    displayName: 'Marching In Place',
+    frequency: 'Daily',
     maxProgression: 3,
     progressions: [
       {
         level: 0,
-        description: "Hold on to counter with hand on non-operated side and march on the spot, alternating legs while keeping spine straight.",
-        type: "Rep",
-        defaultCount: 15,
-        defaultRepeats: 1
+        description: 'Standing, lift one knee to hip height, then lower. Alternate legs in a marching motion.',
+        type: 'Rep',
+        defaultCount: 10,
+        defaultRepeats: 3,
       },
       {
         level: 1,
-        description: "Hold on to counter with hand on non-operated side and march on the spot, alternating legs while keeping spine straight.",
-        type: "Rep",
+        description: 'Same as Level 1 but increase to 15 repetitions per side.',
+        type: 'Rep',
         defaultCount: 15,
-        defaultRepeats: 3
+        defaultRepeats: 3,
       },
       {
         level: 2,
-        description: "Do not hold on, slowly march on the spot, alternating legs while keeping spine straight.",
-        type: "Rep",
+        description: 'Same as Level 2, adding arm swings opposite to the lifted knee.',
+        type: 'Rep',
         defaultCount: 15,
-        defaultRepeats: 3
+        defaultRepeats: 3,
       },
       {
         level: 3,
-        description: "On an uneven surface (or a pillow), do not hold on, slowly march on the spot, alternating legs while keeping spine straight.",
-        type: "Rep",
+        description: 'Same as Level 3 with resistance band around thighs.',
+        type: 'Rep',
         defaultCount: 15,
-        defaultRepeats: 3
-      }
-    ]
+        defaultRepeats: 3,
+      },
+    ],
   },
+
   {
     id: 15,
-    name: "Hip Bending Stretch",
-    displayName: "Ex 15: Hip Bending Stretch",
-    frequency: "Daily",
+    name: 'HipBendingStretch',
+    displayName: 'Hip Bending Stretch',
+    frequency: 'Daily',
     maxProgression: 1,
     progressions: [
       {
         level: 0,
-        description: "While lying down, bend knee and pull operated leg toward chest, use towel to get a little extra stretch.",
-        type: "Time",
-        defaultCount: 45,
-        defaultRepeats: 3
+        description: 'Lying on your back, bring one knee to your chest using both hands. Hold gently. Alternate legs.',
+        type: 'Time',
+        defaultCount: 30,
+        defaultRepeats: 3,
       },
       {
         level: 1,
-        description: "While lying down, pull both knees up together and rock side to side without lifting back (like a windshield wiper).",
-        type: "Time",
-        defaultCount: 15,
-        defaultRepeats: 3
-      }
-    ]
+        description: 'Same as Level 1 but increase hold time to 45 seconds.',
+        type: 'Time',
+        defaultCount: 45,
+        defaultRepeats: 3,
+      },
+    ],
   },
+
   {
     id: 16,
-    name: "Hip Flexor Stretch",
-    displayName: "Ex 16: Hip Flexor Stretch",
-    frequency: "Daily",
+    name: 'HipFlexorStretch',
+    displayName: 'Hip Flexor Stretch',
+    frequency: 'Daily',
     maxProgression: 0,
     progressions: [
       {
         level: 0,
-        description: "Lie with operated leg hanging over the end (or side) of the bed. Bend the non-operated leg toward the chest (use a towel if necessary). Hold.",
-        type: "Time",
-        defaultCount: 45,
-        defaultRepeats: 3
-      }
-    ]
+        description: 'In a lunge position with the back knee on the floor, push your hips gently forward. Hold the stretch.',
+        type: 'Time',
+        defaultCount: 30,
+        defaultRepeats: 3,
+      },
+    ],
   },
+
   {
     id: 17,
-    name: "Seated Hamstring Stretch",
-    displayName: "Ex 17: Seated Hamstring Stretch",
-    frequency: "Daily",
+    name: 'SeatedHamstringStretch',
+    displayName: 'Seated Hamstring Stretch',
+    frequency: 'Daily',
     maxProgression: 0,
     progressions: [
       {
         level: 0,
-        description: "Sit on edge of chair with non-operated leg flat on floor. Straighten operated leg while keeping heel on floor and toes pointed to ceiling.",
-        type: "Time",
-        defaultCount: 45,
-        defaultRepeats: 3
-      }
-    ]
-  }
+        description: 'Seated on a chair, straighten one leg and reach toward your toes. Hold the stretch. Alternate legs.',
+        type: 'Time',
+        defaultCount: 30,
+        defaultRepeats: 3,
+      },
+    ],
+  },
+
+  // ── Alt1 exercises (Mon / Wed / Fri) ─────────────────────────────────────────
+
+  {
+    id: 7,
+    name: 'Bridge',
+    displayName: 'Bridge',
+    frequency: 'Alt1',
+    maxProgression: 3,
+    progressions: [
+      {
+        level: 0,
+        description: 'Lying on your back with knees bent and feet flat, squeeze your glutes and lift your hips off the floor. Hold briefly then lower.',
+        type: 'Rep',
+        defaultCount: 10,
+        defaultRepeats: 3,
+      },
+      {
+        level: 1,
+        description: 'Same as Level 1 but hold the raised position for 5 seconds each rep.',
+        type: 'Rep',
+        defaultCount: 10,
+        defaultRepeats: 3,
+      },
+      {
+        level: 2,
+        description: 'Same as Level 2 but perform as a single-leg bridge — one foot flat, the other leg extended straight.',
+        type: 'Rep',
+        defaultCount: 10,
+        defaultRepeats: 3,
+      },
+      {
+        level: 3,
+        description: 'Same as Level 3 with a resistance band around your thighs.',
+        type: 'Rep',
+        defaultCount: 10,
+        defaultRepeats: 3,
+      },
+    ],
+  },
+
+  {
+    id: 8,
+    name: 'ClamShell',
+    displayName: 'Clam Shell',
+    frequency: 'Alt1',
+    maxProgression: 1,
+    progressions: [
+      {
+        level: 0,
+        description: 'Lying on your side with knees bent, keep feet together and lift the top knee as high as comfortable without rolling your hips.',
+        type: 'Rep',
+        defaultCount: 15,
+        defaultRepeats: 3,
+      },
+      {
+        level: 1,
+        description: 'Same as Level 1 with a resistance band around your thighs.',
+        type: 'Rep',
+        defaultCount: 15,
+        defaultRepeats: 3,
+      },
+    ],
+  },
+
+  // ── Alt2 exercises (Tue / Thu / Sat) ─────────────────────────────────────────
+
+  {
+    id: 10,
+    name: 'StandingHipAbd',
+    displayName: 'Standing Hip Abduction',
+    frequency: 'Alt2',
+    maxProgression: 1,
+    progressions: [
+      {
+        level: 0,
+        description: 'Standing beside a wall for balance, lift one leg straight out to the side. Keep toes pointed forward. Alternate legs.',
+        type: 'Rep',
+        defaultCount: 15,
+        defaultRepeats: 3,
+      },
+      {
+        level: 1,
+        description: 'Same as Level 1 with a resistance band around your ankles.',
+        type: 'Rep',
+        defaultCount: 15,
+        defaultRepeats: 3,
+      },
+    ],
+  },
+
+  {
+    id: 11,
+    name: 'Squat',
+    displayName: 'Squat',
+    frequency: 'Alt2',
+    maxProgression: 1,
+    progressions: [
+      {
+        level: 0,
+        description: 'Stand with feet shoulder-width apart. Lower yourself as if sitting into a chair, keeping your chest up and knees over your toes. Return to standing.',
+        type: 'Rep',
+        defaultCount: 10,
+        defaultRepeats: 3,
+      },
+      {
+        level: 1,
+        description: 'Same as Level 1 but lower to a deeper position (90-degree knee angle) if comfortable.',
+        type: 'Rep',
+        defaultCount: 10,
+        defaultRepeats: 3,
+      },
+    ],
+  },
+
+  {
+    id: 12,
+    name: 'CrabWalk',
+    displayName: 'Crab Walk',
+    frequency: 'Alt2',
+    maxProgression: 1,
+    progressions: [
+      {
+        level: 0,
+        description: 'With a resistance band around your ankles, slightly bend your knees and step sideways — 10 steps in each direction.',
+        type: 'Rep',
+        defaultCount: 10,
+        defaultRepeats: 3,
+      },
+      {
+        level: 1,
+        description: 'Same as Level 1 but move the resistance band up to just above your knees.',
+        type: 'Rep',
+        defaultCount: 10,
+        defaultRepeats: 3,
+      },
+    ],
+  },
+
+  {
+    id: 13,
+    name: 'StandingLegAbd',
+    displayName: 'Standing Leg Abduction',
+    frequency: 'Alt2',
+    maxProgression: 3,
+    progressions: [
+      {
+        level: 0,
+        description: 'Standing, lift one leg straight back behind you, squeezing your glutes at the top. Hold briefly then lower. Alternate legs.',
+        type: 'Rep',
+        defaultCount: 15,
+        defaultRepeats: 3,
+      },
+      {
+        level: 1,
+        description: 'Same as Level 1 but hold the raised position for 3 seconds each rep.',
+        type: 'Rep',
+        defaultCount: 15,
+        defaultRepeats: 3,
+      },
+      {
+        level: 2,
+        description: 'Same as Level 2 with a resistance band around your ankles.',
+        type: 'Rep',
+        defaultCount: 15,
+        defaultRepeats: 3,
+      },
+      {
+        level: 3,
+        description: 'Same as Level 3 with increased resistance band tension.',
+        type: 'Rep',
+        defaultCount: 15,
+        defaultRepeats: 3,
+      },
+    ],
+  },
+
 ];
 
 export { EXERCISES };
