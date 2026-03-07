@@ -67,4 +67,22 @@ function getDayLabel(date) {
   return `${name} — Daily exercises only`;
 }
 
-export { getApplicableExercises, isApplicableOn, getDayLabel, ALT1_DAYS, ALT2_DAYS };
+/**
+ * Returns the recovery day number (1-based) from the surgery date.
+ * Day 1 is the surgery date itself.
+ *
+ * Uses local midnight for both dates to avoid time-zone drift —
+ * the same approach as todayStr() in firestore.js.
+ *
+ * @param {string} day1Str - ISO date string 'YYYY-MM-DD' stored in profile.day1
+ * @returns {number} Recovery day number, minimum 1
+ */
+function getDayNumber(day1Str) {
+  const day1  = new Date(day1Str + 'T00:00:00');
+  const today = new Date();
+  today.setHours(0, 0, 0, 0);
+  const diff = Math.floor((today - day1) / 86400000) + 1;
+  return Math.max(1, diff); // never return 0 or negative
+}
+
+export { getApplicableExercises, isApplicableOn, getDayLabel, getDayNumber, ALT1_DAYS, ALT2_DAYS };

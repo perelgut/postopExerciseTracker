@@ -308,3 +308,5 @@ const EXERCISES = [
     ]
   }
 ];
+
+export { EXERCISES };

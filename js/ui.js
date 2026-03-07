@@ -1,134 +1,121 @@
-/**
- * ui.js — UI Utilities: Screen Switching, Toast Notifications, Loading, Card Toggle
- *
- * This module owns all direct DOM manipulation that is shared across screens.
- * Other modules import from here — they do NOT manipulate screens or toasts directly.
- *
- * Exports:
- *   showScreen(screenName)               — hide all screens, show the target
- *   showToast(message, type, duration)   — floating notification (success/error/warn)
- *   setLoadingLabel(text)                — update the "Connecting…" label on loading screen
- *   updateOfflineBanner()                — sync offline banner to navigator.onLine
- *   toggleCard(exerciseId)               — expand/collapse an exercise card
- *   setCardLogged(exerciseId, entry)     — put a card into logged state
- *   setCardEditing(exerciseId, entry)    — put a logged card back into edit mode
- *   setCardError(exerciseId, message)    — show inline error on a card
- *
- * Screen names (must match index.html IDs with prefix "screen-"):
- *   'loading' | 'log' | 'history' | 'progressions'
- *
- * Nav button IDs (must match index.html):
- *   #nav-today | #nav-history | #nav-progressions
- *
- * Called by: app.js, logger.js (T3.4), history.js (T3.5), progressions-ui.js (T3.6)
- * Does NOT import from any other local module — zero circular dependency risk.
- */
+// ui.js — UI utilities: screen switching, toast notifications, offline banner, header update.
+// All direct DOM manipulation shared across screens lives here.
+// Other modules import from this file — they do not touch screens or toasts directly.
+//
+// Depends on: nothing — zero local imports, no circular dependency risk.
+//
+// DOM references verified against index.html (T3.1):
+//   Screens:           #screen-loading, #screen-log, #screen-history, #screen-progressions
+//   Loading label:     .loading-label  (class selector — element has no id)
+//   Offline banner:    #offline-banner
+//   Toast:             #toast
+//   Nav buttons:       .nav-btn[data-screen]  (no id attributes on nav buttons)
+//   Day badge:         #hdr-day-label
+//   Date label:        #hdr-date
+//   Completion badge:  #hdr-completion
 
-// ─── Screen registry ─────────────────────────────────────────────────────────
+// ── Screen registry ────────────────────────────────────────────────────────────
 
-const SCREEN_IDS = {
-  loading:      'screen-loading',
-  log:          'screen-log',
-  history:      'screen-history',
-  progressions: 'screen-progressions',
-};
+// All screen div IDs present in index.html.
+// Order does not matter — used only for hide-all iteration.
+const ALL_SCREENS = [
+  'screen-loading',
+  'screen-log',
+  'screen-history',
+  'screen-progressions',
+];
 
-// Map nav button IDs to screen names
-const NAV_SCREEN_MAP = {
-  'nav-today':        'log',
-  'nav-history':      'history',
-  'nav-progressions': 'progressions',
-};
-
-// ─── Screen switching ─────────────────────────────────────────────────────────
+// ── Screen switching ───────────────────────────────────────────────────────────
 
 /**
- * Hides all screens and shows the requested one.
- * Updates nav button aria/active state.
- * @param {string} screenName — one of 'loading' | 'log' | 'history' | 'progressions'
+ * Hides all screens and reveals the requested one.
+ * Syncs the nav button active state via .nav-btn--active class and aria-current.
+ *
+ * Note: screen-loading has no nav button — calling showScreen('screen-loading')
+ * will correctly remove the active class from all nav buttons.
+ *
+ * @param {string} screenId — must be one of ALL_SCREENS, e.g. 'screen-log'
  */
-function showScreen(screenName) {
-  if (!SCREEN_IDS[screenName]) {
-    console.error(`ui.js showScreen: unknown screen "${screenName}"`);
+function showScreen(screenId) {
+  if (!ALL_SCREENS.includes(screenId)) {
+    console.error(`ui.js showScreen: unknown screenId "${screenId}"`);
     return;
   }
 
-  // Hide all screens
-  Object.values(SCREEN_IDS).forEach(id => {
+  // Hide every screen by setting inline display:none
+  ALL_SCREENS.forEach(id => {
     const el = document.getElementById(id);
     if (el) el.style.display = 'none';
   });
 
-  // Show the target screen
-  const target = document.getElementById(SCREEN_IDS[screenName]);
+  // Show the target by removing the inline override (lets CSS decide display value)
+  const target = document.getElementById(screenId);
   if (target) {
-    target.style.display = '';   // remove inline override, let CSS rule apply
+    target.style.display = '';
   } else {
-    console.error(`ui.js showScreen: element #${SCREEN_IDS[screenName]} not found in DOM`);
+    console.error(`ui.js showScreen: #${screenId} not found in DOM`);
+    return;
   }
 
-  // Update nav button active states (loading screen has no nav button)
-  Object.entries(NAV_SCREEN_MAP).forEach(([btnId, screen]) => {
-    const btn = document.getElementById(btnId);
-    if (!btn) return;
-    const isActive = screen === screenName;
-    btn.classList.toggle('active', isActive);
+  // Sync nav button active state.
+  // Buttons use class .nav-btn and data-screen attribute — they have no id attributes.
+  document.querySelectorAll('.nav-btn').forEach(btn => {
+    const isActive = btn.dataset.screen === screenId;
+    btn.classList.toggle('nav-btn--active', isActive);
     btn.setAttribute('aria-current', isActive ? 'page' : 'false');
   });
 
-  console.log('ui.js: screen →', screenName);
+  console.log('ui.js: screen →', screenId);
 }
 
-// Convenience wrappers used by app.js startup sequence
-function showLoading() { showScreen('loading'); }
-function hideLoading() { /* showScreen('log') is called explicitly by app.js */ }
-
-// ─── Loading screen label ─────────────────────────────────────────────────────
+// ── Loading label ──────────────────────────────────────────────────────────────
 
 /**
- * Updates the status text on the loading screen (e.g. "Authenticating…").
- * Safe to call before DOM is fully ready — will silently no-op if element absent.
+ * Updates the status text shown on the loading screen.
+ * Element is a <p class="loading-label"> — no id, so use querySelector.
+ * Safe to call before DOM is fully ready — silently no-ops if element absent.
+ *
  * @param {string} text
  */
 function setLoadingLabel(text) {
-  const el = document.getElementById('loading-label');
+  const el = document.querySelector('.loading-label');
   if (el) el.textContent = text;
 }
 
-// ─── Offline banner ───────────────────────────────────────────────────────────
+// ── Offline banner ─────────────────────────────────────────────────────────────
 
 /**
- * Shows or hides the offline banner based on navigator.onLine.
- * Call this on startup and whenever online/offline events fire.
+ * Shows or hides #offline-banner based on navigator.onLine.
+ * Call on app startup and on window 'online' / 'offline' events.
  */
 function updateOfflineBanner() {
   const banner = document.getElementById('offline-banner');
   if (!banner) return;
-
   const online = navigator.onLine;
   banner.style.display = online ? 'none' : '';
-  banner.setAttribute('aria-hidden', online ? 'true' : 'false');
+  banner.setAttribute('aria-hidden', String(online));
 }
 
-// ─── Toast notifications ──────────────────────────────────────────────────────
+// ── Toast notifications ────────────────────────────────────────────────────────
 
 let _toastTimer = null;
 
 /**
- * Shows a floating toast notification.
- * @param {string} message                        — Text to display
- * @param {'success'|'error'|'warn'} [type]       — Visual style (default: 'success')
- * @param {number} [duration]                     — Auto-hide delay in ms (default: 3000)
+ * Displays a floating toast notification in #toast.
+ * Rapid successive calls cancel the previous auto-hide timer.
+ *
+ * @param {string} message
+ * @param {'success'|'error'|'warn'} [type='success']  — controls CSS modifier class
+ * @param {number} [duration=3000]  — ms before auto-hide; 0 = stays until next call
  */
 function showToast(message, type = 'success', duration = 3000) {
   const toast = document.getElementById('toast');
   if (!toast) {
-    // Fallback: at least log it so nothing is silently swallowed
+    // Fallback so nothing is silently swallowed during early startup
     console.warn(`ui.js showToast [${type}]: ${message}`);
     return;
   }
 
-  // Clear any running hide timer so rapid toasts don't fight each other
   if (_toastTimer) {
     clearTimeout(_toastTimer);
     _toastTimer = null;
@@ -136,160 +123,65 @@ function showToast(message, type = 'success', duration = 3000) {
 
   toast.textContent = message;
 
-  // Reset classes then apply new ones
-  toast.className = '';
-  toast.classList.add('toast', `toast--${type}`, 'toast--visible');
+  // Reset to base class then apply modifier
+  toast.className = 'toast';
+  toast.classList.add(`toast--${type}`, 'toast--visible');
 
-  _toastTimer = setTimeout(() => {
-    toast.classList.remove('toast--visible');
-    _toastTimer = null;
-  }, duration);
+  if (duration > 0) {
+    _toastTimer = setTimeout(() => {
+      toast.classList.remove('toast--visible');
+      _toastTimer = null;
+    }, duration);
+  }
 }
 
-// ─── Exercise card toggle (expand / collapse) ─────────────────────────────────
+// ── Header update ──────────────────────────────────────────────────────────────
 
 /**
- * Expands a collapsed exercise card or collapses an expanded one.
- * The card element must have id="card-{exerciseId}".
- * The expandable body must have class="card__body".
- * The chevron icon must have class="card__chevron".
+ * Updates the log-screen header: day badge, date string, and completion indicator.
+ * Called by app.js on startup and by logger.js after each log or update action.
  *
- * @param {string|number} exerciseId
- */
-function toggleCard(exerciseId) {
-  const card = document.getElementById(`card-${exerciseId}`);
-  if (!card) {
-    console.warn(`ui.js toggleCard: #card-${exerciseId} not found`);
-    return;
-  }
-
-  const isExpanded = card.classList.contains('card--expanded');
-
-  if (isExpanded) {
-    card.classList.remove('card--expanded');
-    card.setAttribute('aria-expanded', 'false');
-  } else {
-    card.classList.add('card--expanded');
-    card.setAttribute('aria-expanded', 'true');
-  }
-}
-
-// ─── Exercise card state helpers ──────────────────────────────────────────────
-
-/**
- * Transitions an exercise card into the "logged" state.
- * Hides the log form, shows the logged summary badge, adds the logged CSS modifier.
+ * Completion badge CSS classes (defined in styles.css):
+ *   .completion-badge--pending  — default amber ring
+ *   .completion-badge--done     — green checkmark state
  *
- * @param {string|number} exerciseId
- * @param {{count: number, repeats: number, timeOfDay: string, level: number}} entry
+ * @param {number} dayNumber       — recovery day number (1-based)
+ * @param {number} totalScheduled  — exercises scheduled for today
+ * @param {number} totalLogged     — exercises logged so far today
  */
-function setCardLogged(exerciseId, entry) {
-  const card = document.getElementById(`card-${exerciseId}`);
-  if (!card) return;
+function updateHeader(dayNumber, totalScheduled, totalLogged) {
+  const dayBadge  = document.getElementById('hdr-day-label');
+  const dateLabel = document.getElementById('hdr-date');
+  const badge     = document.getElementById('hdr-completion');
 
-  card.classList.add('card--logged');
-  card.classList.remove('card--expanded');
-  card.setAttribute('aria-expanded', 'false');
-
-  // Update the logged summary badge if it exists
-  const summary = card.querySelector('.card__logged-summary');
-  if (summary) {
-    const typeLabel = entry.type === 'Time' ? 's' : 'r';
-    summary.textContent =
-      `P${entry.level} · ${entry.count}${typeLabel} × ${entry.repeats} · ${entry.timeOfDay}`;
-    summary.style.display = '';
+  if (dayBadge) {
+    dayBadge.textContent = `Day ${dayNumber}`;
   }
 
-  // Hide the log form, show the edit hint
-  const form = card.querySelector('.card__log-form');
-  if (form) form.style.display = 'none';
-}
-
-/**
- * Transitions a logged card back into edit mode.
- * Pre-fills the count and repeats inputs with previously saved values.
- * Changes the submit button label to "Update".
- *
- * @param {string|number} exerciseId
- * @param {{count: number, repeats: number, timeOfDay: string, level: number}} entry
- */
-function setCardEditing(exerciseId, entry) {
-  const card = document.getElementById(`card-${exerciseId}`);
-  if (!card) return;
-
-  card.classList.remove('card--logged');
-  card.classList.add('card--expanded', 'card--editing');
-  card.setAttribute('aria-expanded', 'true');
-
-  // Show the log form
-  const form = card.querySelector('.card__log-form');
-  if (form) form.style.display = '';
-
-  // Pre-fill inputs
-  const countInput   = card.querySelector('.card__input-count');
-  const repeatsInput = card.querySelector('.card__input-repeats');
-  if (countInput)   countInput.value   = entry.count;
-  if (repeatsInput) repeatsInput.value = entry.repeats;
-
-  // Update submit button to "Update"
-  const submitBtn = card.querySelector('.card__log-btn');
-  if (submitBtn) {
-    submitBtn.textContent = 'Update';
-    submitBtn.classList.add('card__log-btn--update');
+  if (dateLabel) {
+    dateLabel.textContent = new Date().toLocaleDateString('en-CA', {
+      weekday: 'long', month: 'long', day: 'numeric',
+    });
   }
 
-  // Hide the logged summary
-  const summary = card.querySelector('.card__logged-summary');
-  if (summary) summary.style.display = 'none';
-}
-
-/**
- * Shows an inline validation error message on an exercise card.
- * Clears automatically when the card is toggled or re-submitted.
- *
- * @param {string|number} exerciseId
- * @param {string} message
- */
-function setCardError(exerciseId, message) {
-  const card = document.getElementById(`card-${exerciseId}`);
-  if (!card) return;
-
-  let errorEl = card.querySelector('.card__error');
-  if (!errorEl) {
-    errorEl = document.createElement('p');
-    errorEl.className = 'card__error';
-    const form = card.querySelector('.card__log-form');
-    if (form) form.appendChild(errorEl);
-    else card.appendChild(errorEl);
+  if (badge) {
+    const allDone = totalScheduled > 0 && totalLogged >= totalScheduled;
+    badge.classList.toggle('completion-badge--done',    allDone);
+    badge.classList.toggle('completion-badge--pending', !allDone);
+    const label = allDone
+      ? 'All exercises complete'
+      : `${totalLogged} of ${totalScheduled} exercises logged`;
+    badge.setAttribute('aria-label', label);
+    badge.title = label;
   }
-
-  errorEl.textContent = message;
-  errorEl.style.display = '';
 }
 
-/**
- * Clears any inline error on an exercise card.
- * @param {string|number} exerciseId
- */
-function clearCardError(exerciseId) {
-  const card = document.getElementById(`card-${exerciseId}`);
-  if (!card) return;
-  const errorEl = card.querySelector('.card__error');
-  if (errorEl) errorEl.style.display = 'none';
-}
-
-// ─── Exports ──────────────────────────────────────────────────────────────────
+// ── Exports ────────────────────────────────────────────────────────────────────
 
 export {
   showScreen,
-  showLoading,
-  hideLoading,
   setLoadingLabel,
   updateOfflineBanner,
   showToast,
-  toggleCard,
-  setCardLogged,
-  setCardEditing,
-  setCardError,
-  clearCardError,
+  updateHeader,
 };
