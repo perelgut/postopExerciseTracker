@@ -1,59 +1,91 @@
-// Firebase Anonymous Authentication — creates/restores anonymous UID, localStorage fallback.
+// auth.js — Firebase Google Sign-In authentication.
+//
+// Replaces anonymous auth (T2.3) with Google Sign-In so the patient's data
+// is accessible from any device using the same Google account.
+//
+// BEHAVIOUR:
+//   initAuth() checks if Firebase already has a signed-in user (persistent
+//   session from a previous visit). If yes, returns the UID immediately —
+//   the patient does not see the sign-in screen again.
+//   If no current user, returns null so app.js can show the sign-in screen.
+//   signInWithGoogle() triggers the Google sign-in popup and returns the UID.
+//
+// EXPORTS:
+//   initAuth()         → Promise<string|null>  — UID if already signed in, null if not
+//   signInWithGoogle() → Promise<string>        — triggers popup, returns UID on success
+//   getCurrentUID()    → string|null            — synchronous, current UID or null
+//
+// FIREBASE CONSOLE REQUIREMENT (manual step):
+//   Authentication → Sign-in method → Google → Enable
+//   Set a project support email address.
 
-import { auth } from './firebase-config.js';
-import { signInAnonymously, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-auth.js";
+import { auth, provider }          from './firebase-config.js';
+import { onAuthStateChanged,
+         signInWithPopup }         from "https://www.gstatic.com/firebasejs/10.12.0/firebase-auth.js";
 
-const UID_KEY = 'postop_uid';
-let currentUID = null;
+// ── Module state ───────────────────────────────────────────────────────────────
+
+let _currentUID = null;
+
+// ── initAuth ───────────────────────────────────────────────────────────────────
 
 /**
- * Initialises anonymous authentication.
- * Returns a Promise that resolves with the UID when auth is ready.
- * On failure falls back to the UID stored in localStorage.
+ * Checks Firebase auth state on startup.
+ * Returns the current user's UID if already signed in, or null if not.
+ * Uses a Promise wrapping onAuthStateChanged so the startup sequence can
+ * await the result before deciding whether to show the sign-in screen.
+ *
+ * @returns {Promise<string|null>}
  */
 function initAuth() {
-  return new Promise((resolve, reject) => {
-    let resolved = false;
-
-    // onAuthStateChanged fires immediately if a session already exists,
-    // or after signInAnonymously completes on first visit.
-    const unsubscribe = onAuthStateChanged(auth, user => {
-      if (user && !resolved) {
-        resolved = true;
-        unsubscribe(); // stop listening after first resolution
-        currentUID = user.uid;
-        localStorage.setItem(UID_KEY, currentUID);
-        console.log('Auth ready. UID:', currentUID);
-        resolve(currentUID);
+  return new Promise((resolve) => {
+    // onAuthStateChanged fires once immediately with the current user (or null),
+    // then continues to fire on subsequent sign-in/sign-out events.
+    // We unsubscribe after the first call — app.js only needs the initial state.
+    const unsubscribe = onAuthStateChanged(auth, (user) => {
+      unsubscribe();
+      if (user) {
+        _currentUID = user.uid;
+        console.log('auth.js: existing session, uid =', user.uid);
+      } else {
+        _currentUID = null;
+        console.log('auth.js: no current session');
       }
-    });
-
-    // Attempt anonymous sign-in — no-op if already signed in
-    signInAnonymously(auth).catch(err => {
-      console.error('Anonymous sign-in failed:', err.code, err.message);
-      if (!resolved) {
-        resolved = true;
-        unsubscribe();
-        const storedUID = localStorage.getItem(UID_KEY);
-        if (storedUID) {
-          console.warn('Using cached UID from localStorage:', storedUID);
-          currentUID = storedUID;
-          resolve(currentUID);
-        } else {
-          reject(new Error('Authentication failed and no cached UID available. ' +
-                           'Please check your internet connection and reload.'));
-        }
-      }
+      resolve(_currentUID);
     });
   });
 }
 
+// ── signInWithGoogle ───────────────────────────────────────────────────────────
+
 /**
- * Returns the current anonymous UID.
- * Returns null if initAuth() has not been called yet or has not resolved.
+ * Opens the Google sign-in popup. Called when the patient taps "Sign in with Google"
+ * on the sign-in screen.
+ *
+ * On success: sets _currentUID and returns the UID string.
+ * On failure: throws an error — app.js catches it and shows an error toast.
+ *
+ * @returns {Promise<string>} — the signed-in user's UID
  */
-function getCurrentUID() {
-  return currentUID || localStorage.getItem(UID_KEY);
+async function signInWithGoogle() {
+  const result = await signInWithPopup(auth, provider);
+  _currentUID = result.user.uid;
+  console.log('auth.js: Google sign-in successful, uid =', _currentUID);
+  return _currentUID;
 }
 
-export { initAuth, getCurrentUID };
+// ── getCurrentUID ──────────────────────────────────────────────────────────────
+
+/**
+ * Returns the current user's UID synchronously.
+ * Returns null if not yet signed in.
+ *
+ * @returns {string|null}
+ */
+function getCurrentUID() {
+  return _currentUID;
+}
+
+// ── Exports ────────────────────────────────────────────────────────────────────
+
+export { initAuth, signInWithGoogle, getCurrentUID };

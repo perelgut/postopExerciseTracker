@@ -1,30 +1,22 @@
 // app.js — Application bootstrap and startup sequence.
 //
-// Implements the 9-step startup sequence per Functional Specification Section 6.1.
+// Startup sequence (revised for Google Sign-In):
 //
 // Step 1 — Loading screen already visible from HTML default (no JS needed)
 // Step 2 — Register online/offline listeners, sync offline banner
-// Step 3 — initAuth() → UID
+// Step 3 — initAuth() → UID if already signed in, null if not
+//           If null → show #screen-signin and wait for patient to sign in
+//           If UID  → proceed directly to Step 4
 // Step 4 — getProfile() → create default profile on first visit
 // Step 5 — getDayNumber() from profile.day1
 // Step 6 — getProgressions() + getLog() in parallel
 // Step 7 — getApplicableExercises() for today → todayExercises array
 // Step 8 — updateHeader() with day number and completion counts
 // Step 9 — Wire nav buttons, show screen-log, dispatch 'app:ready'
-//
-// Imports verified against actual Phase 2 source files:
-//   ui.js         — showScreen, setLoadingLabel, updateOfflineBanner, showToast, updateHeader
-//   auth.js       — initAuth() → Promise<string uid>
-//   firestore.js  — getProfile, saveProfile, getProgressions, getLog, todayStr
-//                   All return { success: boolean, data | error }
-//   exercises.js  — EXERCISES array (id, name, displayName, frequency, maxProgression, progressions[])
-//   scheduler.js  — getApplicableExercises(date, exercises) → filtered array
-//                   getDayLabel(date) → string
-//                   getDayNumber(day1Str) → number
 
 import { showScreen, setLoadingLabel, updateOfflineBanner,
          showToast, updateHeader }                         from './ui.js';
-import { initAuth }                                        from './auth.js';
+import { initAuth, signInWithGoogle }                      from './auth.js';
 import { getProfile, saveProfile, getProgressions,
          getLog, todayStr }                                from './firestore.js';
 import { EXERCISES }                                       from './exercises.js';
@@ -32,24 +24,17 @@ import { getApplicableExercises, getDayLabel,
          getDayNumber }                                    from './scheduler.js';
 
 // ── Global app state ───────────────────────────────────────────────────────────
-//
-// Exposed on window._app so logger.js, history.js, and progressions-ui.js
-// can read shared state without creating circular imports.
-// These modules must NOT write back to window._app except through the
-// functions defined here (updateTodayLog, refreshHeader).
 
 window._app = {
-  uid:            null,    // string  — anonymous Firebase UID
-  profile:        null,    // object  — raw profile data from Firestore
-  day1:           null,    // string  — 'YYYY-MM-DD' surgery/start date
-  dayNumber:      0,       // number  — recovery day (1-based)
-  progressions:   {},      // object  — { [exerciseId]: level }
-  todayLog:       {},      // object  — { [exerciseId]: entry } built from log entries array
-  todayExercises: [],      // array   — exercise objects scheduled for today (from EXERCISES)
+  uid:            null,
+  profile:        null,
+  day1:           null,
+  dayNumber:      0,
+  progressions:   {},
+  todayLog:       {},
+  todayExercises: [],
   currentScreen:  'screen-loading',
 
-  // Called by logger.js after saving a log entry, to keep todayLog in sync
-  // and refresh the header completion badge without a full page reload.
   updateTodayLog(exerciseId, entry) {
     window._app.todayLog[exerciseId] = entry;
     const logged    = Object.keys(window._app.todayLog).length;
@@ -60,11 +45,6 @@ window._app = {
 
 // ── Navigation wiring ──────────────────────────────────────────────────────────
 
-/**
- * Wires click handlers on all .nav-btn elements.
- * Uses data-screen attribute to determine which screen to show.
- * Notifies screen modules to refresh their content via window._*Module.refresh().
- */
 function wireNavigation() {
   document.querySelectorAll('.nav-btn').forEach(btn => {
     btn.addEventListener('click', () => {
@@ -74,7 +54,6 @@ function wireNavigation() {
       showScreen(screenId);
       window._app.currentScreen = screenId;
 
-      // Notify screen modules to refresh if they have loaded
       switch (screenId) {
         case 'screen-history':
           if (window._historyModule?.refresh) window._historyModule.refresh();
@@ -92,18 +71,6 @@ function wireNavigation() {
 
 // ── Today log index builder ────────────────────────────────────────────────────
 
-/**
- * Converts the log document's entries array into a keyed map for fast lookup.
- * firestore.js getLog() returns { date, dayOfWeek, entries[], updatedAt }.
- * We index by exerciseId so logger.js can do todayLog[exerciseId] instantly.
- *
- * If an exercise appears more than once in entries (e.g. after an update),
- * the last entry wins — this is consistent with how updateLogEntry works
- * (remove old, append new).
- *
- * @param {object|null} logDoc — the data property from getLog() result
- * @returns {object} — { [exerciseId]: entryObject }
- */
 function buildTodayLogIndex(logDoc) {
   if (!logDoc || !Array.isArray(logDoc.entries)) return {};
   const index = {};
@@ -111,6 +78,44 @@ function buildTodayLogIndex(logDoc) {
     index[entry.exerciseId] = entry;
   });
   return index;
+}
+
+// ── Sign-in screen wiring ──────────────────────────────────────────────────────
+
+/**
+ * Shows the sign-in screen and wires the "Sign in with Google" button.
+ * Returns a Promise that resolves with the UID once the patient signs in.
+ * On error, shows a toast and re-enables the button so they can try again.
+ *
+ * @returns {Promise<string>} — resolves with uid after successful sign-in
+ */
+function waitForSignIn() {
+  return new Promise((resolve) => {
+    showScreen('screen-signin');
+    window._app.currentScreen = 'screen-signin';
+
+    const btn = document.getElementById('btn-google-signin');
+    if (!btn) {
+      console.error('app.js: #btn-google-signin not found in DOM');
+      return;
+    }
+
+    btn.addEventListener('click', async () => {
+      btn.disabled    = true;
+      btn.textContent = 'Signing in…';
+
+      try {
+        const uid = await signInWithGoogle();
+        resolve(uid);
+      } catch (err) {
+        console.error('app.js: Google sign-in failed:', err);
+        // Re-enable button so patient can try again
+        btn.disabled    = false;
+        btn.textContent = 'Sign in with Google';
+        showToast('Sign-in failed — please try again.', 'error');
+      }
+    });
+  });
 }
 
 // ── Startup sequence ───────────────────────────────────────────────────────────
@@ -123,9 +128,18 @@ async function init() {
     window.addEventListener('online',  updateOfflineBanner);
     window.addEventListener('offline', updateOfflineBanner);
 
-    // Step 3 — Anonymous auth
-    setLoadingLabel('Authenticating…');
-    const uid = await initAuth();
+    // Step 3 — Check for existing Google session
+    setLoadingLabel('Checking sign-in…');
+    let uid = await initAuth();
+
+    if (!uid) {
+      // No existing session — show sign-in screen and wait
+      uid = await waitForSignIn();
+      // Back to loading screen while we load data
+      showScreen('screen-loading');
+      window._app.currentScreen = 'screen-loading';
+    }
+
     window._app.uid = uid;
     console.log('app.js: auth OK, uid =', uid);
 
@@ -140,9 +154,7 @@ async function init() {
     let profileData = profileResult.data;
 
     if (!profileData) {
-      // First visit — create a default profile.
-      // day1 defaults to today so the app is immediately usable.
-      // The clinician updates day1 via the profile screen (future task).
+      // First visit on this Google account — create default profile
       const defaultProfile = {
         uid,
         day1:      todayStr(),
@@ -150,7 +162,6 @@ async function init() {
       };
       const saveResult = await saveProfile(uid, defaultProfile);
       if (!saveResult.success) {
-        // Non-fatal — we can still proceed with the default in memory
         console.warn('app.js: saveProfile failed on first visit:', saveResult.error);
       }
       profileData = defaultProfile;
@@ -165,7 +176,7 @@ async function init() {
     window._app.dayNumber = dayNumber;
     console.log('app.js: dayNumber =', dayNumber);
 
-    // Step 6 — Progressions + today's log (parallel, non-blocking each other)
+    // Step 6 — Progressions + today's log (parallel)
     setLoadingLabel('Loading exercises…');
     const today = todayStr();
 
@@ -175,7 +186,6 @@ async function init() {
     ]);
 
     if (!progressionsResult.success) {
-      // Non-fatal — proceed with empty progressions (all exercises at level 0)
       console.warn('app.js: getProgressions failed:', progressionsResult.error);
     }
     window._app.progressions = progressionsResult.success
@@ -183,7 +193,6 @@ async function init() {
       : {};
 
     if (!logResult.success) {
-      // Non-fatal — proceed with empty log (no exercises logged yet today)
       console.warn('app.js: getLog failed:', logResult.error);
     }
     window._app.todayLog = buildTodayLogIndex(
@@ -191,7 +200,6 @@ async function init() {
     );
 
     // Step 7 — Today's exercise schedule
-    // getApplicableExercises takes a Date object and the full EXERCISES array.
     const todayExercises = getApplicableExercises(new Date(), EXERCISES);
     window._app.todayExercises = todayExercises;
     console.log('app.js: today —', getDayLabel(new Date()),
@@ -208,9 +216,6 @@ async function init() {
     showScreen('screen-log');
     window._app.currentScreen = 'screen-log';
 
-    // Dispatch app:ready so logger.js can render exercise cards.
-    // Custom event decouples module load order — logger.js listens independently
-    // rather than being called directly, avoiding a direct import dependency.
     window.dispatchEvent(new CustomEvent('app:ready', {
       detail: {
         uid,
@@ -225,7 +230,6 @@ async function init() {
     console.log('app.js: startup complete — app:ready dispatched');
 
   } catch (err) {
-    // Keep loading screen visible — there is no usable state without auth + profile.
     console.error('app.js: startup failed:', err);
     setLoadingLabel('Could not connect. Please check your internet connection and reload.');
     showToast('Connection failed — please reload the page.', 'error', 0);
@@ -234,8 +238,6 @@ async function init() {
 
 // ── Entry point ────────────────────────────────────────────────────────────────
 
-// <script type="module"> runs after HTML is parsed, so DOMContentLoaded has
-// usually already fired. The guard below handles the rare edge case where it has not.
 if (document.readyState === 'loading') {
   document.addEventListener('DOMContentLoaded', init);
 } else {

@@ -856,6 +856,78 @@ select, input {
   letter-spacing: 0.04em;
 }
 
+/* ── Sign-In Screen ─────────────────────────────────────────── */
+#screen-signin {
+  align-items: center;
+  justify-content: center;
+  min-height: 100dvh;
+  background: var(--clr-bg);
+  padding-bottom: 0;
+}
+
+.signin-inner {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: var(--sp-5);
+  padding: var(--sp-8) var(--sp-6);
+  max-width: 360px;
+  width: 100%;
+  text-align: center;
+}
+
+.signin-logo {
+  opacity: 0.85;
+}
+
+.signin-title {
+  font-size: 1.5rem;
+  font-weight: 800;
+  color: var(--clr-primary);
+  letter-spacing: -0.02em;
+  margin: 0;
+}
+
+.signin-subtitle {
+  font-size: 0.9375rem;
+  color: var(--clr-text-body);
+  line-height: 1.6;
+  margin: 0;
+}
+
+.btn-google-signin {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: var(--sp-3);
+  width: 100%;
+  min-height: 52px;
+  background: #ffffff;
+  color: #3c4043;
+  font-size: 0.9375rem;
+  font-weight: 600;
+  border: 1.5px solid var(--clr-border);
+  border-radius: var(--radius-md);
+  box-shadow: 0 1px 3px rgba(0,0,0,0.08);
+  transition: box-shadow var(--transition-fast), background var(--transition-fast);
+  -webkit-tap-highlight-color: transparent;
+  margin-top: var(--sp-2);
+}
+
+.btn-google-signin:hover:not(:disabled) {
+  background: #f8f9fa;
+  box-shadow: 0 2px 6px rgba(0,0,0,0.12);
+}
+
+.btn-google-signin:active:not(:disabled) {
+  transform: scale(0.98);
+}
+
+.btn-google-signin:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+
 /* ── Empty State ────────────────────────────────────────────── */
 .empty-state {
   text-align: center;

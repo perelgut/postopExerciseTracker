@@ -3,8 +3,8 @@
 // Never replace placeholders with real values in this file.
 
 import { initializeApp }                    from "https://www.gstatic.com/firebasejs/10.12.0/firebase-app.js";
-import { getAuth }                          from "https://www.gstatic.com/firebasejs/10.12.0/firebase-auth.js";
-import { getFirestore, initializeFirestore,
+import { getAuth, GoogleAuthProvider }      from "https://www.gstatic.com/firebasejs/10.12.0/firebase-auth.js";
+import { initializeFirestore,
          persistentLocalCache }             from "https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js";
 
 const firebaseConfig = {
@@ -16,12 +16,13 @@ const firebaseConfig = {
   appId:             "__FIREBASE_APP_ID__"
 };
 
-const app  = initializeApp(firebaseConfig);
-const auth = getAuth(app);
+const app      = initializeApp(firebaseConfig);
+const auth     = getAuth(app);
+const provider = new GoogleAuthProvider();
 
-// v10 replacement for deprecated enableIndexedDbPersistence
+// v10 persistent local cache (replaces deprecated enableIndexedDbPersistence)
 const db = initializeFirestore(app, {
   localCache: persistentLocalCache()
 });
 
-export { auth, db };
+export { auth, db, provider };

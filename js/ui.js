@@ -4,8 +4,9 @@
 //
 // Depends on: nothing — zero local imports, no circular dependency risk.
 //
-// DOM references verified against index.html (T3.1):
-//   Screens:           #screen-loading, #screen-log, #screen-history, #screen-progressions
+// DOM references verified against index.html:
+//   Screens:           #screen-loading, #screen-signin, #screen-log,
+//                      #screen-history, #screen-progressions
 //   Loading label:     .loading-label  (class selector — element has no id)
 //   Offline banner:    #offline-banner
 //   Toast:             #toast
@@ -20,6 +21,7 @@
 // Order does not matter — used only for hide-all iteration.
 const ALL_SCREENS = [
   'screen-loading',
+  'screen-signin',
   'screen-log',
   'screen-history',
   'screen-progressions',
