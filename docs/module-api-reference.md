@@ -424,26 +424,109 @@ ALT2_DAYS = [2, 4, 6]   // Tuesday, Thursday, Saturday
 
 ```
 FILE:           js/progression.js
-SOURCE STATUS:  STUB — one comment line only, nothing implemented
-VERIFIED FROM:  Human paste in current conversation ('// Progression management…')
-EXPORTS:        NONE
-TASK:           T2.6 — NOT COMPLETE
+SOURCE STATUS:  DELIVERED T2.6 — written in this conversation against verified sources
+VERIFIED FROM:  exercises.js, firestore.js, app.js window._app contract — all confirmed
+TASK:           T2.6 — COMPLETE
 ```
 
-### IMPACT
+### DESIGN: Conservative update (Option B — human decision)
 ```
-app.js WORKAROUND:  Calls getProgressions(uid) from firestore.js directly.
-                    This is acceptable for Phase 3.
-BLOCKING:           T3.9 (Progressions screen) cannot be completed until T2.6 is done.
-ACTION REQUIRED:    Reopen T2.6 on task tracker before starting T3.9.
+Firestore write attempted FIRST.
+window._app.progressions updated ONLY after Firestore confirms success.
+On failure: memory unchanged, { success: false, error } returned to caller.
+No rollback needed — memory never modified before confirmation.
 ```
 
-### INTENDED INTERFACE (from project plan — NOT YET IMPLEMENTED)
+### IMPORTS
+```javascript
+import { updateProgression } from './firestore.js';
+import { EXERCISES }         from './exercises.js';
 ```
-[Unverified — based on project plan documents, not confirmed source]
-getLevel(exerciseId)           — returns current level for exercise
-setLevel(exerciseId, level)    — updates level, validates against maxProgression
-isAtMaxLevel(exerciseId)       — boolean
+
+### READS FROM window._app (must be populated by app.js before any call)
+```
+window._app.uid          — string  — Firebase UID for Firestore writes
+window._app.progressions — object  — ProgressionsMap { [exerciseId]: level }
+```
+
+### WRITES TO window._app
+```
+window._app.progressions[exerciseId] = newLevel
+  — ONLY written after updateProgression() returns { success: true }
+```
+
+### EXPORTS
+
+#### getLevel(exerciseId)
+```
+SIGNATURE:  getLevel(exerciseId: number) → number
+RETURNS:    Current level (0-based). Returns 0 if no progression saved.
+NOTE:       Reads from window._app.progressions — synchronous, no Firestore call.
+```
+
+#### setLevel(exerciseId, newLevel)
+```
+SIGNATURE:  setLevel(exerciseId: number, newLevel: number)
+            → Promise<{ success: boolean, error?: string }>
+VALIDATES:  exerciseId exists in EXERCISES
+            newLevel is integer >= 0
+            newLevel <= exercise.maxProgression
+            window._app.uid is set
+ON SUCCESS: Calls updateProgression(uid, exerciseId, newLevel)
+            Then sets window._app.progressions[exerciseId] = newLevel
+ON FAILURE: Returns { success: false, error: string }, memory unchanged
+```
+
+#### isAtMaxLevel(exerciseId)
+```
+SIGNATURE:  isAtMaxLevel(exerciseId: number) → boolean
+RETURNS:    true if currentLevel >= exercise.maxProgression
+            true if exerciseId not found (treat unknown as non-advanceable)
+USE FOR:    Disabling/hiding Advance button on progressions screen
+```
+
+#### canAdvance(exerciseId)
+```
+SIGNATURE:  canAdvance(exerciseId: number) → boolean
+RETURNS:    !isAtMaxLevel(exerciseId)
+NOTE:       Semantic alias — use whichever reads more clearly in context
+```
+
+#### canRevert(exerciseId)
+```
+SIGNATURE:  canRevert(exerciseId: number) → boolean
+RETURNS:    true if currentLevel > 0
+USE FOR:    Disabling/hiding Revert button on progressions screen
+```
+
+#### getProgressionData(exerciseId)
+```
+SIGNATURE:  getProgressionData(exerciseId: number) → ProgressionLevel | null
+RETURNS:    The EXERCISES[].progressions[currentLevel] object for the exercise
+            null if exerciseId not found or level out of range
+SHAPE:      { level, description, type, defaultCount, defaultRepeats }
+            (verified from exercises.js — see ProgressionLevel shape above)
+```
+
+#### getExerciseProgressionSummary(exerciseId)
+```
+SIGNATURE:  getExerciseProgressionSummary(exerciseId: number) → ProgressionSummary | null
+RETURNS:    null if exerciseId not found
+SHAPE:
+{
+  id:             number,   // exercise id
+  displayName:    string,   // e.g. 'Ex 7: Bridge'
+  frequency:      string,   // 'Daily' | 'Alt1' | 'Alt2'
+  currentLevel:   number,
+  maxProgression: number,
+  canAdvance:     boolean,
+  canRevert:      boolean,
+  description:    string,
+  type:           string,   // 'Rep' | 'Time'
+  defaultCount:   number,
+  defaultRepeats: number,
+}
+USE FOR:    Progressions screen card rendering — single call returns everything needed
 ```
 
 ---
@@ -627,6 +710,144 @@ On click:                 showScreen(screenId)
 
 ---
 
+## MODULE: logger.js (T3.4)
+
+```
+FILE:           js/logger.js
+SOURCE STATUS:  DELIVERED T3.4 — written in this conversation against verified sources
+VERIFIED FROM:  index.html, styles.css, firestore.js, progression.js, app.js — all confirmed
+```
+
+### IMPORTS
+```javascript
+import { saveLogEntry, updateLogEntry, todayStr } from './firestore.js';
+import { showToast }                               from './ui.js';
+import { getProgressionData }                      from './progression.js';
+```
+
+### TRIGGER
+```
+Listens for: window 'app:ready' CustomEvent
+event.detail shape: { uid, profile, dayNumber, todayExercises, progressions, todayLog }
+Renders cards immediately on receipt of this event.
+```
+
+### DOM TARGETS (verified against index.html)
+```
+#exercise-list   — card injection container, role="list"
+#time-of-day     — time-of-day select, read on every Log/Update click
+```
+
+### CARD ELEMENT IDs (dynamically generated, keyed by exerciseId)
+```
+#card-{id}              — outer article element
+#card-body-{id}         — collapsible body section
+#card-check-{id}        — checkmark span (hidden until logged)
+#prog-badge-{id}        — progression level badge (hidden when logged)
+#logged-summary-{id}    — logged summary badge (shown when logged)
+#card-desc-{id}         — description paragraph
+#log-form-{id}          — log form div
+#count-{id}             — count number input
+#repeats-{id}           — repeats number input
+#log-error-{id}         — inline error paragraph (hidden until validation fails)
+#log-btn-{id}           — Log / Update button
+```
+
+### CSS CLASSES USED (verified against styles.css)
+```
+CARD OUTER:
+  .exercise-card              — outer wrapper (article element)
+  .exercise-card--logged      — modifier: green border/bg when logged
+  .exercise-card--open        — modifier: expands .card-body via CSS
+
+CARD HEADER (always visible):
+  .card-header                — tappable row, role="button"
+  .card-chevron               — rotates 180deg when --open (pure CSS, no JS needed)
+  .card-title-group           — flex:1 name + badges container
+  .card-exercise-name         — exercise display name
+  .card-badges                — flex row for badges
+  .freq-badge                 — base frequency badge class
+  .freq-badge--daily          — Daily (blue)
+  .freq-badge--alt1           — Alt1 (purple)
+  .freq-badge--alt2           — Alt2 (amber-brown)
+  .prog-badge                 — grey level badge (hidden when logged)
+  .logged-summary             — green summary badge (shown when logged)
+  .card-check                 — green circle with SVG checkmark (hidden until logged)
+
+CARD BODY (collapsible):
+  .card-body                  — hidden by default via CSS
+                                CSS rule: .exercise-card--open .card-body { display:block }
+                                IMPORTANT: logger.js ONLY toggles .exercise-card--open
+                                           Never set .card-body display directly
+  .card-description           — description text with left teal border
+
+LOG FORM:
+  .log-form                   — flex column container
+  .log-inputs                 — 2-column CSS grid
+  .input-group                — label + input + unit hint wrapper
+  .input-label                — small uppercase label
+  .input-field                — styled number input (min-height: 44px, centered text)
+  .input-unit                 — small unit hint below input (e.g. "reps", "seconds")
+  .btn-log                    — primary log button (dark teal)
+  .btn-log--update            — modifier: green teal for update mode
+
+UTILITY:
+  .empty-state                — centred muted paragraph (no exercises / inline errors)
+```
+
+### READS FROM window._app
+```
+window._app.uid              — for Firestore calls
+window._app.todayLog         — TodayLogIndex, checked to determine log vs update
+window._app.progressions     — for current level (passed to getProgressionData)
+window._app.todayExercises   — used by refresh()
+```
+
+### WRITES TO window._app
+```
+Does NOT write directly.
+Calls window._app.updateTodayLog(exerciseId, entry) after every successful write.
+app.js owns all state mutation.
+```
+
+### MODULE INTERFACE
+```javascript
+window._loggerModule = {
+  refresh()   // Re-renders all cards from current window._app state.
+              // Called by app.js nav wiring when user taps Today nav button.
+}
+```
+
+### LOG / UPDATE FLOW
+```
+1. User taps Log / Update button on a card
+2. _submitting Map checked — if true, return immediately (double-tap guard)
+3. count + repeats inputs read and parseInt'd — validated as integers >= 1
+4. timeOfDay read from #time-of-day select
+5. LogEntry built: { exerciseId, progressionLevel, timeOfDay, count, repeats, loggedAt }
+6. Button disabled, text = 'Saving...' while write in progress
+7. If window._app.todayLog[id] exists:
+     updateLogEntry(uid, todayStr(), oldEntry, newEntry)   — arrayRemove + arrayUnion
+   Else:
+     saveLogEntry(uid, todayStr(), dayOfWeek, newEntry)    — 4 params
+8. On Firestore failure: button re-enabled, showToast error, return
+9. On success:
+     window._app.updateTodayLog(id, newEntry)   — updates memory + refreshes header badge
+     Card UI → logged state: --logged class, summary badge, checkmark shown, button = Update
+     showToast success message
+```
+
+### DOUBLE-TAP PROTECTION
+```
+_submitting: Map<exerciseId, boolean>
+Set true:  before Firestore write begins
+Cleared:   on both success AND failure paths
+Button:    disabled + text 'Saving...' during write, re-enabled on failure
+```
+
+
+---
+
 ## INDEX.html — KEY STRUCTURAL FACTS
 
 ```
@@ -657,9 +878,9 @@ screen-progressions HIDDEN    — style="display:none"
 ### SCRIPT LOADING
 ```html
 <script type="module" src="js/app.js"></script>
-<!-- Only app.js is loaded directly. All other modules loaded via ES module imports. -->
-<!-- logger.js, history.js, progressions-ui.js must add their own script tags
-     OR be imported by a module that IS loaded. Confirm with human before assuming. -->
+<script type="module" src="js/logger.js"></script>    <!-- T3.4: added -->
+<!-- history.js and progressions-ui.js must also be added as script tags when delivered. -->
+<!-- Confirm with human before assuming any script tag has been added. -->
 ```
 
 ---
@@ -676,14 +897,13 @@ PHASE 2 — Core Modules
   T2.3  firestore.js          COMPLETE ✓
   T2.4  exercises.js          COMPLETE ✓  (export line added at line 312)
   T2.5  scheduler.js          COMPLETE ✓  (getDayNumber added for T3.3)
-  T2.6  progression.js        INCOMPLETE ✗  — stub only, nothing exported
-                                             BLOCKS: T3.9
+  T2.6  progression.js        COMPLETE ✓   (delivered this conversation)
 
 PHASE 3 — UI Shell
   T3.1  index.html + styles.css    COMPLETE ✓  (committed to repo)
   T3.2  ui.js                      COMPLETE ✓  (delivered this conversation)
   T3.3  app.js                     COMPLETE ✓  (delivered this conversation)
-  T3.4  logger.js                  NOT STARTED
+  T3.4  logger.js                  COMPLETE ✓   (delivered this conversation)
   T3.5  history.js                 NOT STARTED
   T3.6  progressions-ui.js         NOT STARTED
   T3.7+                            NOT STARTED
@@ -697,9 +917,8 @@ PHASE 3 — UI Shell
 FS-OI-2   Repo visibility (public or private)              PENDING
 FS-OI-3   Exact repo name capitalization                   PENDING
 FS-OI-4   Time-of-day auto-suggestion behavior (T3.6)      PENDING
-T2.6      progression.js must be completed before T3.9     ACTION REQUIRED
 ```
 
 ---
-*Document generated: 2026-03-06. Update when any module source changes.*
+*Document last updated: 2026-03-06. Covers T2.1–T2.6, T3.1–T3.4. Update when any module source changes.*
 *When in doubt: ask the human to paste the current file. Do not infer.*
