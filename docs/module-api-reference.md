@@ -34,26 +34,39 @@ RULE 6: If this document is older than the current conversation, ask human to pa
 
 ```
 FILE:           js/firebase-config.js
-SOURCE STATUS:  VERIFIED (confirmed referenced correctly by auth.js and firestore.js)
-VERIFIED FROM:  Import statements in auth.js and firestore.js — not directly pasted
+SOURCE STATUS:  VERIFIED (full source pasted and confirmed)
+VERIFIED FROM:  Human paste in current conversation
+LAST CHANGED:   Google Sign-In — added GoogleAuthProvider import and provider export
 ```
 
 ### EXPORTS
 ```
-auth   — Firebase Auth instance
-db     — Firebase Firestore instance
+auth      — Firebase Auth instance
+db        — Firebase Firestore instance (initializeFirestore with persistentLocalCache)
+provider  — GoogleAuthProvider instance (used by auth.js signInWithPopup)
 ```
 
-### IMPORT PATTERN (used by auth.js and firestore.js)
+### IMPORT PATTERNS
 ```javascript
-import { auth } from './firebase-config.js';
-import { db }   from './firebase-config.js';
+import { auth, provider } from './firebase-config.js';   // auth.js
+import { db }             from './firebase-config.js';   // firestore.js
 ```
 
 ### FIREBASE SDK VERSION
 ```
+https://www.gstatic.com/firebasejs/10.12.0/firebase-app.js
 https://www.gstatic.com/firebasejs/10.12.0/firebase-auth.js
 https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js
+```
+
+### OFFLINE PERSISTENCE
+```
+initializeFirestore(app, { localCache: persistentLocalCache() })
+v10 replacement for deprecated enableIndexedDbPersistence().
+NOTE: On first run after switching from anonymous auth, Firestore may log
+"INTERNAL ASSERTION FAILED: Unexpected state" and fall back to memory cache.
+Caused by stale anonymous IndexedDB cache. Clear browser IndexedDB to resolve.
+Not a recurring issue on clean installs.
 ```
 
 ---
@@ -62,41 +75,67 @@ https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js
 
 ```
 FILE:           js/auth.js
-SOURCE STATUS:  VERIFIED (full source pasted and confirmed)
-VERIFIED FROM:  Human paste in current conversation
+SOURCE STATUS:  VERIFIED (full source delivered and confirmed working)
+VERIFIED FROM:  Delivered this session, tested on Windows + iPhone — cross-device sync confirmed
+LAST CHANGED:   Replaced anonymous auth with Google Sign-In (signInWithPopup)
 ```
 
 ### IMPORTS
 ```javascript
-import { auth } from './firebase-config.js';
-import { signInAnonymously, onAuthStateChanged }
-  from "https://www.gstatic.com/firebasejs/10.12.0/firebase-auth.js";
+import { auth, provider }       from './firebase-config.js';
+import { onAuthStateChanged,
+         signInWithPopup }      from "https://www.gstatic.com/firebasejs/10.12.0/firebase-auth.js";
 ```
 
 ### EXPORTS
 
 #### initAuth()
 ```
-SIGNATURE:  initAuth() → Promise<string>
-RETURNS:    Resolves with UID string when Firebase anonymous auth is ready
-            Rejects with Error if auth fails AND no localStorage fallback exists
-SIDE EFFECT: Stores UID in localStorage under key 'postop_uid'
-FALLBACK:   If signInAnonymously fails, reads UID from localStorage('postop_uid')
-            If localStorage also empty → rejects
+SIGNATURE:  initAuth() → Promise<string|null>
+RETURNS:    string — existing Google UID if user is already signed in (persistent session)
+            null   — if no current session (first visit or after sign-out)
+BEHAVIOR:   Wraps onAuthStateChanged in a Promise, unsubscribes after first fire.
+            app.js checks return value: if null → show sign-in screen and call waitForSignIn()
 CALL ONCE:  Call only during app startup (app.js Step 3)
+NOTE:       Does NOT throw — always resolves. Null means "not signed in", not an error.
+```
+
+#### signInWithGoogle()
+```
+SIGNATURE:  signInWithGoogle() → Promise<string>
+RETURNS:    Signed-in user's UID string on success
+THROWS:     Firebase error on failure (user cancelled popup, network error, etc.)
+            app.js catches error, shows toast, re-enables sign-in button
+BEHAVIOR:   Calls signInWithPopup(auth, provider)
+            Sets _currentUID on success
+CALL FROM:  app.js waitForSignIn() — only when initAuth() returned null
 ```
 
 #### getCurrentUID()
 ```
 SIGNATURE:  getCurrentUID() → string | null
-RETURNS:    Current UID from module-level var, or localStorage fallback, or null
-NOTE:       Returns null if initAuth() has not yet resolved
+RETURNS:    Current UID from module-level var, or null if not signed in
+NOTE:       Synchronous — no Firestore or network call
 ```
 
 ### MODULE-LEVEL STATE
 ```
-currentUID  — string | null, set when initAuth() resolves
-UID_KEY     — 'postop_uid' (localStorage key, internal constant)
+_currentUID  — string | null, set by initAuth() or signInWithGoogle()
+```
+
+### FIREBASE CONSOLE REQUIREMENT
+```
+Authentication → Sign-in method → Google → Enable
+Set a project support email address.
+Without this, signInWithPopup throws auth/operation-not-allowed.
+```
+
+### CROSS-ORIGIN-OPENER-POLICY NOTE
+```
+GitHub Pages sets COOP headers that trigger console warnings during popup flow:
+"Cross-Origin-Opener-Policy policy would block the window.closed call"
+These warnings are harmless — Firebase handles popup completion correctly regardless.
+This is a known GitHub Pages + Firebase popup interaction. Not a bug.
 ```
 
 ---
@@ -557,9 +596,11 @@ VERIFIED FROM:  index.html pasted in current conversation
 ELEMENT              SELECTOR                    NOTES
 ─────────────────────────────────────────────────────────────────────
 Loading screen       #screen-loading             No display:none — visible by default
+Sign-in screen       #screen-signin              Has style="display:none" in HTML
 Log screen           #screen-log                 Has style="display:none" in HTML
 History screen       #screen-history             Has style="display:none" in HTML
 Progressions screen  #screen-progressions        Has style="display:none" in HTML
+Sign-in button       #btn-google-signin          Inside #screen-signin
 Loading label        .loading-label              CLASS not id — use querySelector
 Offline banner       #offline-banner             Has style="display:none" by default
 Day badge            #hdr-day-label              Inside screen-log header only
@@ -584,13 +625,15 @@ Time of day select   #time-of-day                In screen-log, above exercise l
 SIGNATURE:  showScreen(screenId: string) → void
 PARAM:      screenId — must be one of:
               'screen-loading'
+              'screen-signin'
               'screen-log'
               'screen-history'
               'screen-progressions'
 BEHAVIOR:   Hides ALL screens (inline display:none)
             Shows target (removes inline display, lets CSS rule apply)
             Syncs .nav-btn--active class and aria-current on .nav-btn elements
-NOTE:       'screen-loading' has no nav button — all nav buttons lose active state
+NOTE:       'screen-loading' and 'screen-signin' have no nav buttons —
+            all nav buttons lose active state when either is shown
 ```
 
 #### setLoadingLabel(text)
@@ -632,19 +675,21 @@ CALL ON:    App startup (Step 8) and after every log/update action in logger.js
 
 ---
 
-## MODULE: app.js (T3.3)
+## MODULE: app.js (T3.3, revised Google Sign-In)
 
 ```
 FILE:           js/app.js
-SOURCE STATUS:  DELIVERED T3.3 — written in this conversation against all verified sources
+SOURCE STATUS:  DELIVERED — revised this session for Google Sign-In
 ENTRY POINT:    Yes — loaded by index.html as <script type="module" src="js/app.js">
+LAST CHANGED:   Step 3 revised: initAuth() returns null if no session →
+                waitForSignIn() shows #screen-signin and awaits Google popup
 ```
 
 ### IMPORTS
 ```javascript
 import { showScreen, setLoadingLabel, updateOfflineBanner,
          showToast, updateHeader }                         from './ui.js';
-import { initAuth }                                        from './auth.js';
+import { initAuth, signInWithGoogle }                      from './auth.js';
 import { getProfile, saveProfile, getProgressions,
          getLog, todayStr }                                from './firestore.js';
 import { EXERCISES }                                       from './exercises.js';
@@ -670,11 +715,16 @@ window._app = {
 }
 ```
 
-### STARTUP SEQUENCE (9 steps)
+### STARTUP SEQUENCE (9 steps — revised for Google Sign-In)
 ```
 Step 1  HTML default — screen-loading visible, no JS needed
 Step 2  updateOfflineBanner() + register online/offline listeners
-Step 3  initAuth() → uid stored in window._app.uid
+Step 3  initAuth() → string|null
+          If null  → waitForSignIn(): show screen-signin, wire #btn-google-signin,
+                     await signInWithGoogle() → uid
+                     then show screen-loading again before continuing
+          If string → existing Google session, proceed directly
+        uid stored in window._app.uid
 Step 4  getProfile(uid) → create default profile if null (day1 = todayStr())
 Step 5  getDayNumber(profile.day1) → window._app.dayNumber
 Step 6  Promise.all([getProgressions(uid), getLog(uid, todayStr())])
@@ -682,6 +732,16 @@ Step 6  Promise.all([getProgressions(uid), getLog(uid, todayStr())])
 Step 7  getApplicableExercises(new Date(), EXERCISES) → window._app.todayExercises
 Step 8  updateHeader(dayNumber, todayExercises.length, loggedCount)
 Step 9  wireNavigation() → showScreen('screen-log') → dispatch 'app:ready'
+```
+
+### waitForSignIn() (internal function)
+```
+SIGNATURE:  waitForSignIn() → Promise<string>
+BEHAVIOR:   Shows #screen-signin via showScreen()
+            Wires click handler on #btn-google-signin
+            On click: disables button, calls signInWithGoogle()
+            On success: resolves with uid
+            On error:   re-enables button, shows error toast, patient can retry
 ```
 
 ### app:ready EVENT
@@ -1186,16 +1246,16 @@ PHASE 1 — Project Planning
 
 PHASE 2 — Core Modules
   T2.1  firebase-config.js    COMPLETE ✓
-  T2.2  auth.js               COMPLETE ✓
+  T2.2  auth.js               COMPLETE ✓  (revised: Google Sign-In replacing anonymous)
   T2.3  firestore.js          COMPLETE ✓
   T2.4  exercises.js          COMPLETE ✓  (Walk type→'Minutes', defaultCount→20)
   T2.5  scheduler.js          COMPLETE ✓  (getDayNumber added for T3.3)
   T2.6  progression.js        COMPLETE ✓
 
 PHASE 3 — UI Shell  ★ ALL TASKS COMPLETE ★
-  T3.1   index.html + styles.css    COMPLETE ✓  (committed to repo)
-  T3.2   ui.js                      COMPLETE ✓
-  T3.3   app.js                     COMPLETE ✓
+  T3.1   index.html + styles.css    COMPLETE ✓
+  T3.2   ui.js                      COMPLETE ✓  (revised: screen-signin in ALL_SCREENS)
+  T3.3   app.js                     COMPLETE ✓  (revised: Google Sign-In flow in Step 3)
   T3.4   bottom nav bar             COMPLETE ✓  (built into T3.1/T3.3)
   T3.5   exercise cards/logger      COMPLETE ✓  (in logger.js)
   T3.6   time-of-day.js             COMPLETE ✓  (named export; per-card selects)
@@ -1204,6 +1264,21 @@ PHASE 3 — UI Shell  ★ ALL TASKS COMPLETE ★
   T3.9   progressions-ui.js         COMPLETE ✓
   T3.10  history.js                 COMPLETE ✓
   T3.11  table.css                  COMPLETE ✓  (built into T3.1)
+
+PHASE 4 — Polish & Testing
+  T4.1  Recovery day counter        COMPLETE ✓  (built in T3.3)
+  T4.2  Completion indicator badge  COMPLETE ✓  (built in T3.2/T3.3)
+  T4.3  Offline banner              COMPLETE ✓  (built in T3.2)
+  T4.4  Firestore offline persist   COMPLETE ✓  (in firebase-config.js — persistentLocalCache)
+  T4.5  Cross-browser testing       COMPLETE ✓  (Windows Edge + iPhone Safari confirmed)
+  T4.6  Mobile layout review        IN PROGRESS
+  T4.7  E2E functional test         IN PROGRESS
+  T4.8  Bug fixes                   PENDING
+  T4.9  README.md                   PENDING
+
+  UNPLANNED: Google Sign-In replacing anonymous auth
+             firebase-config.js, auth.js, app.js, ui.js, index.html, styles.css
+             COMPLETE ✓ — cross-device sync confirmed working
 ```
 
 ---
@@ -1213,28 +1288,31 @@ PHASE 3 — UI Shell  ★ ALL TASKS COMPLETE ★
 ```
 FS-OI-2   Repo visibility (public or private)    PENDING
 FS-OI-3   Exact repo name capitalization         PENDING
+SIGN-OUT  Sign-out button not yet added          PENDING — needed for account switching
 ```
 
-### PENDING COMMITS (all Phase 3 — ready to push)
+### PENDING COMMITS (current session)
 ```
-js/exercises.js              — Walk: type 'Minutes', defaultCount 20
-js/logger.js                 — per-card time-of-day select, Minutes type branch
-js/time-of-day.js            — named export getTimeBucket, global select display-only
-js/history.js                — T3.10 delivery
-js/progressions-ui.js        — T3.9 NEW FILE
-css/styles.css               — tod-group/tod-select + prog-card-actions/btn-revert
+js/firebase-config.js        — GoogleAuthProvider import and provider export
+js/auth.js                   — Google Sign-In replacing anonymous auth
+js/app.js                    — waitForSignIn() and revised Step 3
+js/ui.js                     — screen-signin added to ALL_SCREENS
+index.html                   — #screen-signin screen + all script tags present
+css/styles.css               — sign-in screen styles (.signin-inner, .btn-google-signin)
 docs/module-api-reference.md — this document
 ```
 
-### index.html SCRIPT TAGS (current state — verify before commit)
+### index.html SCRIPT TAGS (current state — verified)
 ```html
 <script type="module" src="js/app.js"></script>
 <script type="module" src="js/logger.js"></script>
 <script type="module" src="js/history.js"></script>
 <script type="module" src="js/time-of-day.js"></script>
-<script type="module" src="js/progressions-ui.js"></script>   ← ADD THIS LINE
+<script type="module" src="js/progressions-ui.js"></script>
 ```
 
 ---
-*Document last updated: 2026-03-06 (revision 3). Phase 3 complete. Next: Phase 4.*
+*Document last updated: 2026-03-07 (revision 4). Phase 3 complete. Phase 4 in progress.*
+*Google Sign-In implemented and confirmed working across Windows Edge + iPhone Safari.*
+*Next: sign-out button (T4.6 prerequisite), T4.9 README.md, then Phase 5.*
 *When in doubt: ask the human to paste the current file. Do not infer.*
