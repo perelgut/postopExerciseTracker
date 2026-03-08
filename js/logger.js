@@ -1,22 +1,28 @@
-// logger.js — Exercise card rendering and log/update actions for Today screen.
+// logger.js — Exercise card rendering and log/add actions for Today screen.
 //
 // Listens for the 'app:ready' CustomEvent dispatched by app.js after successful
 // startup. Renders one card per applicable exercise into #exercise-list.
-// Handles Log and Update button actions including Firestore persistence.
+// Handles Log (first session) and Add Session (subsequent sessions) actions
+// including Firestore persistence.
+//
+// SESSION MODEL (revised):
+//   Each exercise may have multiple LogEntry objects per day, one per session.
+//   window._app.todayLog[id] is now LogEntry[] (array), not a single entry.
+//   Log button: visible always, disabled after first session (C1 — no update).
+//   Add Session button: hidden until first session, always enabled thereafter.
+//   updateLogEntry() is no longer called — only saveLogEntry() is used.
 //
 // TIME-OF-DAY (revised T3.6):
 //   Each exercise card has its own time-of-day <select>, pre-populated from
 //   getTimeBucket() using the device clock at card build time. The patient can
-//   override this per-card without affecting other cards. This allows accurate
-//   recording when logging exercises done at different times of day, or when
-//   entering data after the fact.
+//   override this per-card without affecting other cards.
 //
 // EXERCISE TYPES:
 //   'Rep'     — count is reps,    unit label 'reps'
 //   'Time'    — count is seconds, unit label 's'
 //   'Minutes' — count is minutes, unit label 'min'  (Walk exercise only)
 //
-// DOM targets (verified against index.html T3.1):
+// DOM targets (verified against index.html):
 //   #exercise-list   — card injection container (role="list")
 //   #time-of-day     — global header select (display only — not read for saves)
 //
@@ -32,24 +38,25 @@
 //   #repeats-{id}         — sets number input
 //   #tod-select-{id}      — per-card time-of-day select
 //   #log-error-{id}       — inline error paragraph
-//   #log-btn-{id}         — Log / Update button
+//   #log-btn-{id}         — Log button (disabled after first session)
+//   #add-btn-{id}         — Add Session button (hidden until first session)
 //
-// CSS classes used (verified against styles.css T3.1):
+// CSS classes used (verified against styles.css):
 //   .exercise-card, .exercise-card--logged, .exercise-card--open
 //   .card-header, .card-chevron, .card-title-group, .card-exercise-name
 //   .card-badges, .freq-badge, .freq-badge--daily/alt1/alt2, .prog-badge
 //   .logged-summary, .card-check, .card-body, .card-description
 //   .log-form, .log-inputs, .input-group, .input-label, .input-field
-//   .input-unit, .btn-log, .btn-log--update, .empty-state
-//   .tod-group (new — wraps the per-card time-of-day selector row)
+//   .input-unit, .btn-log, .btn-add, .empty-state
+//   .tod-group (wraps the per-card time-of-day selector row)
 //
 // Firestore functions used (verified against firestore.js):
-//   saveLogEntry(uid, dateStr, dayOfWeek, entry)   — 4 params
-//   updateLogEntry(uid, dateStr, oldEntry, newEntry)
+//   saveLogEntry(uid, dateStr, dayOfWeek, entry)   — 4 params, always
+//   updateLogEntry() is NO LONGER CALLED (C1 decision)
 //   todayStr()
 //
 // Reads from window._app (set by app.js):
-//   .uid, .todayLog, .progressions, .todayExercises
+//   .uid, .todayLog (LogEntry[]), .progressions, .todayExercises
 //
 // Calls window._app.updateTodayLog(exerciseId, entry) after each save.
 //
@@ -58,7 +65,7 @@
 //
 // Exposes window._loggerModule = { refresh } for nav wiring in app.js.
 
-import { saveLogEntry, updateLogEntry, todayStr } from './firestore.js';
+import { saveLogEntry, todayStr }   from './firestore.js';
 import { showToast }                               from './ui.js';
 import { getProgressionData }                      from './progression.js';
 import { getTimeBucket }                           from './time-of-day.js';
@@ -182,15 +189,15 @@ function _buildTodSelect(exerciseId, storedValue) {
  * @param {object|null} entry  — existing LogEntry for today, or null
  * @returns {HTMLElement}
  */
-function _buildCard(exercise, entry) {
+function _buildCard(exercise, entries) {
   const { id, displayName, frequency } = exercise;
 
   // Get current progression data
   const prog  = getProgressionData(id);
   const level = window._app.progressions[id] ?? 0;
 
-  // Determine initial state
-  const isLogged = !!entry;
+  // entries is LogEntry[] — array from todayLog[id], or empty array
+  const isLogged = entries.length > 0;
 
   // ── Outer card ─────────────────────────────────────────────────────────────
   const card = document.createElement('article');
@@ -229,7 +236,7 @@ function _buildCard(exercise, entry) {
     const summary = document.createElement('span');
     summary.className   = 'logged-summary';
     summary.id          = `logged-summary-${id}`;
-    summary.textContent = _buildSummaryText(entry, prog);
+    summary.textContent = _buildBadgeLabel(entries, prog);
     badges.appendChild(summary);
   } else {
     // Show progression level badge
@@ -281,7 +288,7 @@ function _buildCard(exercise, entry) {
   body.appendChild(desc);
 
   // Log form
-  const form = _buildLogForm(exercise, entry, prog);
+  const form = _buildLogForm(exercise, entries, prog);
   body.appendChild(form);
 
   card.appendChild(body);
@@ -309,22 +316,23 @@ function _buildCard(exercise, entry) {
 
 /**
  * Builds the log form portion of a card body.
- * If entry is provided, pre-fills inputs and sets Update mode.
- * Includes a per-card time-of-day select, auto-populated from device clock
- * or pre-filled from the stored entry when editing.
+ * entries is LogEntry[] from todayLog — empty array if not yet logged.
+ * Log button: always rendered, disabled once entries.length > 0 (C1).
+ * Add Session button: rendered always, hidden until entries.length > 0.
+ * Inputs pre-filled from progression defaults (not from stored entry).
  *
- * @param {object}      exercise  — ExerciseObject
- * @param {object|null} entry     — existing LogEntry or null
- * @param {object|null} prog      — current ProgressionLevel or null
+ * @param {object}   exercise — ExerciseObject
+ * @param {object[]} entries  — LogEntry[] for today (may be empty)
+ * @param {object|null} prog  — current ProgressionLevel or null
  * @returns {HTMLElement}
  */
-function _buildLogForm(exercise, entry, prog) {
+function _buildLogForm(exercise, entries, prog) {
   const { id } = exercise;
-  const isUpdate = !!entry;
+  const isLogged = entries.length > 0;
 
   const typeInfo   = _typeInfo(prog?.type ?? 'Rep');
-  const countVal   = entry ? entry.count   : (prog?.defaultCount   ?? 10);
-  const repeatsVal = entry ? entry.repeats : (prog?.defaultRepeats ?? 1);
+  const countVal   = prog?.defaultCount   ?? 10;
+  const repeatsVal = prog?.defaultRepeats ?? 1;
 
   const form = document.createElement('div');
   form.className = 'log-form';
@@ -351,9 +359,8 @@ function _buildLogForm(exercise, entry, prog) {
   form.appendChild(inputGrid);
 
   // ── Time-of-day selector ───────────────────────────────────────────────────
-  // Stored value used when editing; null causes auto-population from clock.
-  const storedTod = entry ? (entry.timeOfDay ?? null) : null;
-  const todGroup  = _buildTodSelect(id, storedTod);
+  // Always auto-populated from clock (no stored entry pre-fill — C1).
+  const todGroup = _buildTodSelect(id, null);
   form.appendChild(todGroup);
 
   // ── Inline error message ───────────────────────────────────────────────────
@@ -363,14 +370,25 @@ function _buildLogForm(exercise, entry, prog) {
   errorEl.style.cssText = 'display:none; color:var(--clr-error); padding:var(--sp-2) 0; font-size:0.8125rem;';
   form.appendChild(errorEl);
 
-  // ── Log / Update button ────────────────────────────────────────────────────
-  const btn = document.createElement('button');
-  btn.className   = 'btn-log' + (isUpdate ? ' btn-log--update' : '');
-  btn.id          = `log-btn-${id}`;
-  btn.type        = 'button';
-  btn.textContent = isUpdate ? 'Update' : 'Log Exercise';
-  btn.addEventListener('click', () => _handleLogClick(exercise, prog));
-  form.appendChild(btn);
+  // ── Log button (disabled once logged — C1) ─────────────────────────────────
+  const logBtn = document.createElement('button');
+  logBtn.className   = 'btn-log';
+  logBtn.id          = `log-btn-${id}`;
+  logBtn.type        = 'button';
+  logBtn.textContent = 'Log Exercise';
+  logBtn.disabled    = isLogged;
+  logBtn.addEventListener('click', () => _handleLogClick(exercise, prog));
+  form.appendChild(logBtn);
+
+  // ── Add Session button (hidden until first session logged) ─────────────────
+  const addBtn = document.createElement('button');
+  addBtn.className          = 'btn-add';
+  addBtn.id                 = `add-btn-${id}`;
+  addBtn.type               = 'button';
+  addBtn.textContent        = '+ Add Session';
+  addBtn.style.display      = isLogged ? '' : 'none';
+  addBtn.addEventListener('click', () => _handleAdd(exercise, prog));
+  form.appendChild(addBtn);
 
   return form;
 }
@@ -418,9 +436,9 @@ function _buildInputGroup(inputId, labelText, value, unitText) {
 // ── Log / Update action ────────────────────────────────────────────────────────
 
 /**
- * Handles the Log / Update button click for an exercise card.
- * Validates inputs, reads per-card time-of-day select, builds LogEntry,
- * calls Firestore, updates UI.
+ * Handles the Log button click for an exercise card.
+ * Only called for the FIRST session (C1). Log button is disabled after first save.
+ * Validates inputs, builds LogEntry, calls saveLogEntry(), updates UI.
  *
  * @param {object} exercise — ExerciseObject
  * @param {object} prog     — current ProgressionLevel
@@ -441,8 +459,6 @@ async function _handleLogClick(exercise, prog) {
   const count   = parseInt(countInput?.value,   10);
   const repeats = parseInt(repeatsInput?.value, 10);
 
-  // Read time of day from the per-card select.
-  // Falls back to auto-detected bucket if select is somehow missing.
   const timeOfDay = todSelect?.value ?? getTimeBucket(new Date().getHours());
 
   // ── Validate ──────────────────────────────────────────────────────────────
@@ -472,7 +488,7 @@ async function _handleLogClick(exercise, prog) {
   const newEntry = {
     exerciseId:       id,
     progressionLevel: level,
-    timeOfDay,          // from per-card select
+    timeOfDay,
     count,
     repeats,
     loggedAt: now.toISOString(),
@@ -485,23 +501,16 @@ async function _handleLogClick(exercise, prog) {
     btn.textContent = 'Saving…';
   }
 
-  // ── Firestore write ───────────────────────────────────────────────────────
-  const existingEntry = window._app.todayLog[id] ?? null;
-  let result;
+  // ── Firestore write — always saveLogEntry (never update) ──────────────────
+  const result = await saveLogEntry(uid, today, dayOfWeek, newEntry);
 
-  if (existingEntry) {
-    result = await updateLogEntry(uid, today, existingEntry, newEntry);
-  } else {
-    result = await saveLogEntry(uid, today, dayOfWeek, newEntry);
-  }
-
-  // ── Re-enable button regardless of outcome ────────────────────────────────
+  // ── Re-enable button on failure only — stays disabled on success (C1) ─────
   _submitting.delete(id);
 
   if (!result.success) {
     if (btn) {
       btn.disabled    = false;
-      btn.textContent = existingEntry ? 'Update' : 'Log Exercise';
+      btn.textContent = 'Log Exercise';
     }
     showToast('Could not save — please try again.', 'error');
     console.error('logger.js _handleLogClick: Firestore write failed:', result.error);
@@ -514,17 +523,124 @@ async function _handleLogClick(exercise, prog) {
   // ── Update card UI to logged state ────────────────────────────────────────
   _setCardLogged(id, newEntry, prog, exercise.maxProgression, level);
 
-  const action = existingEntry ? 'updated' : 'logged';
-  showToast(`${exercise.name} ${action}!`, 'success');
-  console.log(`logger.js: exercise ${id} ${action}`);
+  showToast(`${exercise.name} logged!`, 'success');
+  console.log(`logger.js: exercise ${id} logged`);
+
+  // Invalidate history cache so the history screen reflects the new entry
+  if (window._historyModule?.invalidateCache) window._historyModule.invalidateCache();
+}
+
+// ── Add Session action ─────────────────────────────────────────────────────────
+
+/**
+ * Handles the Add Session button click.
+ * Appends a new LogEntry for this exercise — same Firestore path as saveLogEntry.
+ * Called for every session after the first (C1: Log button is disabled after first).
+ * Add button is re-enabled after failure so the patient can retry.
+ *
+ * @param {object} exercise — ExerciseObject
+ * @param {object} prog     — current ProgressionLevel
+ */
+async function _handleAdd(exercise, prog) {
+  const { id } = exercise;
+
+  // Prevent double-tap
+  if (_submitting.get(id)) return;
+
+  // ── Read inputs ──────────────────────────────────────────────────────────
+  const countInput   = document.getElementById(`count-${id}`);
+  const repeatsInput = document.getElementById(`repeats-${id}`);
+  const todSelect    = document.getElementById(`tod-select-${id}`);
+  const addBtn       = document.getElementById(`add-btn-${id}`);
+
+  const count   = parseInt(countInput?.value,   10);
+  const repeats = parseInt(repeatsInput?.value, 10);
+  const timeOfDay = todSelect?.value ?? getTimeBucket(new Date().getHours());
+
+  // ── Validate ──────────────────────────────────────────────────────────────
+  const typeInfo = _typeInfo(prog?.type ?? 'Rep');
+
+  if (!Number.isInteger(count) || count < 1) {
+    _showInlineError(id, `Please enter a valid ${typeInfo.unit} value.`);
+    countInput?.focus();
+    return;
+  }
+
+  if (!Number.isInteger(repeats) || repeats < 1) {
+    _showInlineError(id, 'Please enter a valid sets value.');
+    repeatsInput?.focus();
+    return;
+  }
+
+  _clearInlineError(id);
+
+  // ── Build entry ───────────────────────────────────────────────────────────
+  const uid       = window._app.uid;
+  const today     = todayStr();
+  const now       = new Date();
+  const dayOfWeek = now.getDay();
+  const level     = window._app.progressions[id] ?? 0;
+
+  const newEntry = {
+    exerciseId:       id,
+    progressionLevel: level,
+    timeOfDay,
+    count,
+    repeats,
+    loggedAt: now.toISOString(),
+  };
+
+  // ── Disable Add button during write ──────────────────────────────────────
+  _submitting.set(id, true);
+  if (addBtn) {
+    addBtn.disabled    = true;
+    addBtn.textContent = 'Saving…';
+  }
+
+  // ── Firestore write — always saveLogEntry (arrayUnion appends) ────────────
+  const result = await saveLogEntry(uid, today, dayOfWeek, newEntry);
+
+  _submitting.delete(id);
+
+  if (!result.success) {
+    if (addBtn) {
+      addBtn.disabled    = false;
+      addBtn.textContent = '+ Add Session';
+    }
+    showToast('Could not save — please try again.', 'error');
+    console.error('logger.js _handleAdd: Firestore write failed:', result.error);
+    return;
+  }
+
+  // ── Success — append to memory and update badge ───────────────────────────
+  window._app.updateTodayLog(id, newEntry);
+
+  // Re-enable Add button for next session
+  if (addBtn) {
+    addBtn.disabled    = false;
+    addBtn.textContent = '+ Add Session';
+  }
+
+  // Update the summary badge with new session count
+  const allEntries = window._app.todayLog[id] ?? [];
+  const summaryEl  = document.getElementById(`logged-summary-${id}`);
+  if (summaryEl && prog) {
+    summaryEl.textContent = _buildBadgeLabel(allEntries, prog);
+  }
+
+  showToast(`${exercise.name} session added!`, 'success');
+  console.log(`logger.js: exercise ${id} session added — total ${allEntries.length}`);
+
+  // Invalidate history cache so the history screen reflects the new session
+  if (window._historyModule?.invalidateCache) window._historyModule.invalidateCache();
 }
 
 // ── Card UI state transitions ──────────────────────────────────────────────────
 
 /**
- * Transitions a card to logged state after a successful save.
- * Updates badges, shows checkmark, swaps button to Update mode,
- * and collapses the card.
+ * Transitions a card to logged state after a successful first save.
+ * Updates badges, shows checkmark, disables Log button, reveals Add button.
+ * Called only from _handleLogClick (first session).
  */
 function _setCardLogged(exerciseId, entry, prog, maxProgression, level) {
   const card = document.getElementById(`card-${exerciseId}`);
@@ -549,19 +665,27 @@ function _setCardLogged(exerciseId, entry, prog, maxProgression, level) {
     if (badges) badges.appendChild(summaryEl);
   }
 
-  summaryEl.textContent  = _buildSummaryText(entry, prog);
+  // Build badge from entries array (just first session at this point)
+  const allEntries = window._app.todayLog[exerciseId] ?? [];
+  summaryEl.textContent  = _buildBadgeLabel(allEntries, prog);
   summaryEl.style.display = '';
 
   // Show checkmark
   const checkEl = document.getElementById(`card-check-${exerciseId}`);
   if (checkEl) checkEl.style.display = '';
 
-  // Swap button to Update mode
-  const btn = document.getElementById(`log-btn-${exerciseId}`);
-  if (btn) {
-    btn.disabled    = false;
-    btn.textContent = 'Update';
-    btn.classList.add('btn-log--update');
+  // Disable Log button (C1 — no update ever)
+  const logBtn = document.getElementById(`log-btn-${exerciseId}`);
+  if (logBtn) {
+    logBtn.disabled    = true;
+    logBtn.textContent = 'Log Exercise';
+  }
+
+  // Reveal Add Session button
+  const addBtn = document.getElementById(`add-btn-${exerciseId}`);
+  if (addBtn) {
+    addBtn.style.display = '';
+    addBtn.disabled      = false;
   }
 }
 
@@ -583,22 +707,36 @@ function _clearInlineError(exerciseId) {
   }
 }
 
-// ── Summary text builder ───────────────────────────────────────────────────────
+// ── Badge label builder ────────────────────────────────────────────────────────
 
 /**
- * Builds the short logged-summary text shown in the card badge.
- * Examples:
- *   'Rep'     → "15r × 3 · Morning"
- *   'Time'    → "45s × 3 · Afternoon"
- *   'Minutes' → "35min × 1 · Early Morning"
+ * Builds the logged-summary badge text from the full entries array.
  *
- * @param {object} entry — LogEntry
- * @param {object} prog  — ProgressionLevel (for type)
+ * Minutes type (Walk):
+ *   Shows session count and cumulative total minutes.
+ *   Example: "2 sessions · 45min total"
+ *
+ * Rep / Time type:
+ *   Shows progress toward defaultRepeats.
+ *   Example: "1 of 3 sets"  (under target)
+ *            "3+ sets"       (at or over target)
+ *
+ * @param {object[]} entries   — LogEntry[] for this exercise today
+ * @param {object|null} prog   — ProgressionLevel (for type and defaultRepeats)
  * @returns {string}
  */
-function _buildSummaryText(entry, prog) {
-  const { summaryUnit } = _typeInfo(prog?.type ?? 'Rep');
-  return `${entry.count}${summaryUnit} × ${entry.repeats} · ${entry.timeOfDay}`;
+function _buildBadgeLabel(entries, prog) {
+  if (!prog || entries.length === 0) return '—';
+
+  if (prog.type === 'Minutes') {
+    const totalMins = entries.reduce((s, e) => s + e.count, 0);
+    const sessions  = entries.length;
+    return `${sessions} session${sessions > 1 ? 's' : ''} · ${totalMins}min total`;
+  }
+
+  const n = entries.length;
+  const m = prog.defaultRepeats ?? 1;
+  return n >= m ? `${n}+ sets` : `${n} of ${m} sets`;
 }
 
 // ── Card list renderer ─────────────────────────────────────────────────────────
@@ -608,7 +746,7 @@ function _buildSummaryText(entry, prog) {
  * Clears any existing content first (safe to call on refresh).
  *
  * @param {object[]} todayExercises — from event.detail.todayExercises
- * @param {object}   todayLog       — TodayLogIndex { [exerciseId]: LogEntry }
+ * @param {object}   todayLog       — { [exerciseId]: LogEntry[] }
  */
 function _renderCards(todayExercises, todayLog) {
   const list = document.getElementById('exercise-list');
@@ -628,8 +766,9 @@ function _renderCards(todayExercises, todayLog) {
   }
 
   todayExercises.forEach(exercise => {
-    const entry = todayLog[exercise.id] ?? null;
-    const card  = _buildCard(exercise, entry);
+    // Pass entries array (may be empty) — never null
+    const entries = todayLog[exercise.id] ?? [];
+    const card    = _buildCard(exercise, entries);
     list.appendChild(card);
   });
 

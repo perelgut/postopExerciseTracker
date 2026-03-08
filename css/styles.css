@@ -579,6 +579,37 @@ select, input {
   background: #238a7d;
 }
 
+/* ── Add Session Button ─────────────────────────────────────── */
+.btn-add {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 100%;
+  min-height: 48px;
+  background: transparent;
+  color: var(--clr-primary);
+  font-size: 0.9375rem;
+  font-weight: 600;
+  border: 2px solid var(--clr-primary);
+  border-radius: var(--radius-md);
+  transition: background var(--transition-fast), transform var(--transition-fast);
+  -webkit-tap-highlight-color: transparent;
+  margin-top: var(--sp-2);
+}
+
+.btn-add:hover:not(:disabled) {
+  background: rgba(13, 79, 110, 0.06);
+}
+
+.btn-add:active:not(:disabled) {
+  transform: scale(0.98);
+}
+
+.btn-add:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
 /* ── Progression Screen Cards ───────────────────────────────── */
 .progression-card {
   background: var(--clr-surface);

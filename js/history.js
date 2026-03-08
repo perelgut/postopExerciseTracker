@@ -115,18 +115,17 @@ function _formatDateCell(dateStr) {
 // ── Log entry lookup ───────────────────────────────────────────────────────────
 
 /**
- * Finds the log entry for a specific exercise on a specific date.
- * Returns null if no log or no matching entry.
+ * Finds ALL log entries for a specific exercise on a specific date.
+ * Returns empty array if no log or no matching entries.
+ * Multiple entries exist when the patient logged sessions at different times.
  *
- * @param {object|null} logDoc  — LogDoc from Firestore (has .entries array)
+ * @param {object|null} logDoc     — LogDoc from Firestore (has .entries array)
  * @param {number}      exerciseId
- * @returns {object|null}       — LogEntry or null
+ * @returns {object[]}             — LogEntry[] (may be empty)
  */
-function _findEntry(logDoc, exerciseId) {
-  if (!logDoc || !Array.isArray(logDoc.entries)) return null;
-  // Last entry wins — consistent with updateLogEntry behaviour
-  const matches = logDoc.entries.filter(e => e.exerciseId === exerciseId);
-  return matches.length > 0 ? matches[matches.length - 1] : null;
+function _findEntries(logDoc, exerciseId) {
+  if (!logDoc || !Array.isArray(logDoc.entries)) return [];
+  return logDoc.entries.filter(e => e.exerciseId === exerciseId);
 }
 
 // ── Cell builders ──────────────────────────────────────────────────────────────
@@ -135,54 +134,57 @@ function _findEntry(logDoc, exerciseId) {
  * Builds the content for an exercise data cell.
  * Returns an HTML string to set as innerHTML of td.cell-ex.
  *
- * @param {boolean}     applicable  — is this exercise scheduled for this date?
- * @param {object|null} entry       — LogEntry or null
- * @returns {string}                — HTML string
+ * Walk (type 'Minutes'): shows total minutes across all sessions.
+ * All other exercises: shows total repeats (sum across sessions).
+ * Multiple sessions are aggregated — the cell shows totals, not individual entries.
+ *
+ * @param {boolean}  applicable — is this exercise scheduled for this date?
+ * @param {object[]} entries    — LogEntry[] for this exercise on this date (may be empty)
+ * @param {object}   exercise   — ExerciseObject (for type lookup)
+ * @returns {string}            — HTML string
  */
-function _buildCellContent(applicable, entry) {
+function _buildCellContent(applicable, entries, exercise) {
   if (!applicable) {
-    // Not applicable that day — dimmed dot
     return `<span class="cell-na"><span class="cell-na-inner">·</span></span>`;
   }
 
-  if (!entry) {
-    // Applicable but not logged — dash
+  if (entries.length === 0) {
     return `<span class="cell-empty">—</span>`;
   }
 
-  if (entry.count === 0) {
-    // Logged as skipped
+  // Use first entry for progression level (consistent across sessions for same day)
+  const firstEntry = entries[0];
+
+  if (firstEntry.count === 0) {
     return `<span class="cell-skipped">skip</span>`;
   }
 
-  // Logged with data — three-line display
-  const unit      = entry.progressionLevel !== undefined
-    ? _typeUnitForEntry(entry)
-    : 'r';
-  const countStr   = `${entry.count}${unit}`;
-  const repeatsStr = `×${entry.repeats}`;
-  const levelStr   = `L${entry.progressionLevel ?? 0}`;
+  const prog      = exercise.progressions[firstEntry.progressionLevel ?? 0];
+  const isMinutes = prog?.type === 'Minutes';
+  const levelStr  = `L${firstEntry.progressionLevel ?? 0}`;
+
+  if (isMinutes) {
+    // Walk: show total minutes across all sessions
+    const totalMins = entries.reduce((s, e) => s + e.count, 0);
+    return `<span class="cell-logged">
+      <span class="cell-prog">${levelStr}</span>
+      <span class="cell-count">${totalMins}min</span>
+      <span class="cell-repeats">×${entries.length}</span>
+    </span>`;
+  }
+
+  // Rep / Time: show aggregated totals
+  const unit        = prog?.type === 'Time' ? 's' : 'r';
+  const totalCount  = entries.reduce((s, e) => s + e.count,   0);
+  const totalReps   = entries.reduce((s, e) => s + e.repeats, 0);
+  const countStr    = `${totalCount}${unit}`;
+  const repeatsStr  = `×${totalReps}`;
 
   return `<span class="cell-logged">
     <span class="cell-prog">${levelStr}</span>
     <span class="cell-count">${countStr}</span>
     <span class="cell-repeats">${repeatsStr}</span>
   </span>`;
-}
-
-/**
- * Determines the unit suffix for a logged entry's count display.
- * We stored progressionLevel in the entry — use it to look up the exercise type.
- * Falls back to 'r' if lookup fails.
- *
- * @param {object} entry — LogEntry { exerciseId, progressionLevel, ... }
- * @returns {string}     — 'r' for Rep, 's' for Time
- */
-function _typeUnitForEntry(entry) {
-  const exercise = EXERCISES.find(e => e.id === entry.exerciseId);
-  if (!exercise) return 'r';
-  const prog = exercise.progressions[entry.progressionLevel ?? 0];
-  return prog?.type === 'Time' ? 's' : 'r';
 }
 
 // ── Table builder ──────────────────────────────────────────────────────────────
@@ -261,9 +263,9 @@ function _buildTable(dates, logsMap, today) {
       td.className = 'cell-ex';
 
       const applicable = isApplicableOn(dateObj, exercise);
-      const entry      = _findEntry(logDoc, exercise.id);
+      const entries    = _findEntries(logDoc, exercise.id);
 
-      td.innerHTML = _buildCellContent(applicable, entry);
+      td.innerHTML = _buildCellContent(applicable, entries, exercise);
       row.appendChild(td);
     });
 

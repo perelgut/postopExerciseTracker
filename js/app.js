@@ -36,7 +36,10 @@ window._app = {
   currentScreen:  'screen-loading',
 
   updateTodayLog(exerciseId, entry) {
-    window._app.todayLog[exerciseId] = entry;
+    // todayLog[exerciseId] is LogEntry[] — append, never replace.
+    // Key presence = at least one session logged; loggedCount unchanged.
+    if (!window._app.todayLog[exerciseId]) window._app.todayLog[exerciseId] = [];
+    window._app.todayLog[exerciseId].push(entry);
     const logged    = Object.keys(window._app.todayLog).length;
     const scheduled = window._app.todayExercises.length;
     updateHeader(window._app.dayNumber, scheduled, logged);
@@ -75,9 +78,13 @@ function buildTodayLogIndex(logDoc) {
   if (!logDoc || !Array.isArray(logDoc.entries)) return {};
   const index = {};
   logDoc.entries.forEach(entry => {
-    index[entry.exerciseId] = entry;
+    if (!index[entry.exerciseId]) index[entry.exerciseId] = [];
+    index[entry.exerciseId].push(entry);
   });
   return index;
+  // Return type: { [exerciseId]: LogEntry[] }
+  // A key's presence means at least one entry exists for that exercise today.
+  // loggedCount = Object.keys(index).length — unchanged, still correct.
 }
 
 // ── Sign-in screen wiring ──────────────────────────────────────────────────────
