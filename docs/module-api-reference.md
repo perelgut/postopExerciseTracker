@@ -242,8 +242,10 @@ BEHAVIOR:   Two sequential updateDoc calls:
               1. arrayRemove(oldEntry)   — must match exactly
               2. arrayUnion(newEntry)
 WARNING:    oldEntry must be the EXACT object as stored — field-for-field match required
-            for Firestore arrayRemove to work. Store the original entry object in
-            window._app.todayLog[exerciseId] so it can be passed back here.
+            for Firestore arrayRemove to work.
+STATUS:     EXISTS in firestore.js but NOT CALLED by any module as of Add Session revision.
+            logger.js uses only saveLogEntry() (C1 decision — no update path).
+            Do not remove from firestore.js without explicit decision.
 ```
 
 #### todayStr()
@@ -309,13 +311,15 @@ USE FOR:    History screen date list generation
 
 #### TodayLogIndex (built by app.js, NOT stored in Firestore)
 ```javascript
-// app.js converts LogDoc.entries[] into a keyed map for O(1) lookup:
+// app.js converts LogDoc.entries[] into a keyed map for O(1) lookup.
+// REVISED: each key now holds an array of LogEntry objects, not a single entry.
+// Multiple entries per key when patient logs multiple sessions in one day.
 {
-  [exerciseId: number]: LogEntry
+  [exerciseId: number]: LogEntry[]   // array — may contain 1 or more entries
 }
 // Built by buildTodayLogIndex(logDoc) in app.js
 // Stored at window._app.todayLog
-// Last entry wins if duplicates exist (consistent with updateLogEntry behavior)
+// Key presence (not array length) determines "logged today" status
 ```
 
 ---
@@ -705,13 +709,17 @@ window._app = {
   day1:           string | null,    // 'YYYY-MM-DD' from profile.day1
   dayNumber:      number,           // 1-based recovery day
   progressions:   object,           // ProgressionsMap from getProgressions()
-  todayLog:       object,           // TodayLogIndex { [exerciseId]: LogEntry }
+  todayLog:       object,           // { [exerciseId]: LogEntry[] }  ← ARRAY per exercise
+                                    // Key presence = at least one session logged today
+                                    // Built by buildTodayLogIndex() — appends, never replaces
   todayExercises: ExerciseObject[], // from getApplicableExercises()
   currentScreen:  string,           // current screen-* id string
 
   updateTodayLog(exerciseId, entry): void
-    // Called by logger.js after saving/updating a log entry.
-    // Updates todayLog[exerciseId] and calls updateHeader() to refresh badge.
+    // Called by logger.js after EVERY save (Log or Add Session).
+    // Appends entry to todayLog[exerciseId][]. Key presence = logged today.
+    // loggedCount = Object.keys(todayLog).length (unchanged).
+    // Calls updateHeader() to refresh completion badge.
 }
 ```
 
@@ -754,7 +762,7 @@ window.dispatchEvent(new CustomEvent('app:ready', {
     dayNumber:     number,
     todayExercises: ExerciseObject[],
     progressions:  ProgressionsMap,
-    todayLog:      TodayLogIndex,
+    todayLog:      object,          // { [exerciseId]: LogEntry[] }
   }
 }));
 // logger.js listens for this event to render exercise cards.
@@ -783,163 +791,151 @@ On click:                 showScreen(screenId)
 
 ---
 
-## MODULE: logger.js (T3.4)
+## MODULE: logger.js (T3.4, revised Add Session)
 
 ```
 FILE:           js/logger.js
-SOURCE STATUS:  DELIVERED T3.4, REVISED — per-card time-of-day + Minutes type
-VERIFIED FROM:  index.html, styles.css, firestore.js, progression.js, app.js — all confirmed
-CHANGES:        1. Each exercise card now has its own time-of-day <select> (#tod-select-{id})
-                   Auto-populated from device clock via getTimeBucket(). Patient can override.
-                   timeOfDay in LogEntry comes from this per-card select, NOT #time-of-day.
-                2. 'Minutes' type branch added: label='Minutes', unit='min', summaryUnit='min'
-                3. Imports getTimeBucket from time-of-day.js
+SOURCE STATUS:  DELIVERED — revised this session for Add Session support (C1 decision)
+VERIFIED FROM:  app.js, firestore.js, progression.js, time-of-day.js, index.html — confirmed
+LAST CHANGED:   Log-once model. todayLog[id] is now LogEntry[]. updateLogEntry() removed.
+```
+
+### SESSION MODEL (C1 decision — locked)
+```
+Each exercise may have multiple LogEntry objects per day, one per session.
+Log button:         Rendered always. DISABLED after first session. Never re-enabled.
+Add Session button: Rendered always. HIDDEN until first session. Re-enabled after each save.
+updateLogEntry():   NO LONGER CALLED. Only saveLogEntry() is used (arrayUnion appends).
 ```
 
 ### IMPORTS
 ```javascript
-import { saveLogEntry, updateLogEntry, todayStr } from './firestore.js';
-import { showToast }                               from './ui.js';
-import { getProgressionData }                      from './progression.js';
-import { getTimeBucket }                           from './time-of-day.js';
+import { saveLogEntry, todayStr }   from './firestore.js';  // updateLogEntry removed
+import { showToast }                from './ui.js';
+import { getProgressionData }       from './progression.js';
+import { getTimeBucket }            from './time-of-day.js';
 ```
 
 ### TRIGGER
 ```
 Listens for: window 'app:ready' CustomEvent
-event.detail shape: { uid, profile, dayNumber, todayExercises, progressions, todayLog }
-Renders cards immediately on receipt of this event.
+event.detail: { uid, profile, dayNumber, todayExercises, progressions, todayLog }
+Renders cards immediately on receipt.
 ```
 
-### DOM TARGETS (verified against index.html)
+### DOM TARGETS
 ```
 #exercise-list   — card injection container, role="list"
 #time-of-day     — global header select — DISPLAY ONLY, never read during saves
-                   Each card has its own #tod-select-{id} for the actual logged value.
 ```
 
-### CARD ELEMENT IDs (dynamically generated, keyed by exerciseId)
+### CARD ELEMENT IDs (keyed by exerciseId)
 ```
 #card-{id}              — outer article element
 #card-body-{id}         — collapsible body section
-#card-check-{id}        — checkmark span (hidden until logged)
+#card-check-{id}        — checkmark span (hidden until first session)
 #prog-badge-{id}        — progression level badge (hidden when logged)
 #logged-summary-{id}    — logged summary badge (shown when logged)
 #card-desc-{id}         — description paragraph
 #log-form-{id}          — log form div
-#count-{id}             — count number input
-#repeats-{id}           — sets number input
-#tod-select-{id}        — per-card time-of-day <select> (NEW — auto-populated from clock)
-#log-error-{id}         — inline error paragraph (hidden until validation fails)
-#log-btn-{id}           — Log / Update button
+#count-{id}             — count number input (always pre-filled from defaults)
+#repeats-{id}           — sets number input (always pre-filled from defaults)
+#tod-select-{id}        — per-card time-of-day select (auto-populated from clock)
+#log-error-{id}         — inline error paragraph
+#log-btn-{id}           — Log button (disabled after first session — C1)
+#add-btn-{id}           — Add Session button (hidden until first session)
 ```
 
 ### CSS CLASSES USED (verified against styles.css)
 ```
 CARD OUTER:
-  .exercise-card              — outer wrapper (article element)
-  .exercise-card--logged      — modifier: green border/bg when logged
-  .exercise-card--open        — modifier: expands .card-body via CSS
+  .exercise-card, .exercise-card--logged, .exercise-card--open
 
-CARD HEADER (always visible):
-  .card-header                — tappable row, role="button"
-  .card-chevron               — rotates 180deg when --open (pure CSS, no JS needed)
-  .card-title-group           — flex:1 name + badges container
-  .card-exercise-name         — exercise display name
-  .card-badges                — flex row for badges
-  .freq-badge                 — base frequency badge class
-  .freq-badge--daily          — Daily (blue)
-  .freq-badge--alt1           — Alt1 (purple)
-  .freq-badge--alt2           — Alt2 (amber-brown)
-  .prog-badge                 — grey level badge (hidden when logged)
-  .logged-summary             — green summary badge (shown when logged)
-  .card-check                 — green circle with SVG checkmark (hidden until logged)
+CARD HEADER:
+  .card-header, .card-chevron, .card-title-group, .card-exercise-name
+  .card-badges, .freq-badge, .freq-badge--daily/alt1/alt2
+  .prog-badge, .logged-summary, .card-check
 
-CARD BODY (collapsible):
-  .card-body                  — hidden by default via CSS
-                                CSS rule: .exercise-card--open .card-body { display:block }
-                                IMPORTANT: logger.js ONLY toggles .exercise-card--open
-                                           Never set .card-body display directly
-  .card-description           — description text with left teal border
+CARD BODY:
+  .card-body  (toggled via .exercise-card--open — NEVER set display directly)
+  .card-description
 
 LOG FORM:
-  .log-form                   — flex column container
-  .log-inputs                 — 2-column CSS grid (count + sets inputs)
-  .input-group                — label + input + unit hint wrapper
-  .input-label                — small uppercase label
-  .input-field                — styled number input (min-height: 44px, centered text)
-  .input-unit                 — small unit hint below input (e.g. "reps", "min")
-  .tod-group                  — wrapper div for per-card time-of-day label + select
-  .tod-select                 — the per-card time-of-day <select> element
-  .btn-log                    — primary log button (dark teal)
-  .btn-log--update            — modifier: green teal for update mode
+  .log-form, .log-inputs, .input-group, .input-label, .input-field, .input-unit
+  .tod-group, .tod-select
+  .btn-log        — Log button (dark teal, disabled:not re-enabled after first session)
+  .btn-add        — Add Session button (outlined teal, margin-top: sp-2)
+  .empty-state    — inline error paragraph
+```
 
-UTILITY:
-  .empty-state                — centred muted paragraph (no exercises / inline errors)
+### BADGE LABEL: _buildBadgeLabel(entries, prog)
+```
+entries: LogEntry[] for this exercise today
+prog:    ProgressionLevel
+
+Minutes type (Walk):
+  "1 session · 20min total"
+  "2 sessions · 45min total"
+  totalMins = entries.reduce((s,e) => s + e.count, 0)
+
+Rep / Time type:
+  "1 of 3 sets"     when entries.length < prog.defaultRepeats
+  "3+ sets"         when entries.length >= prog.defaultRepeats
 ```
 
 ### TYPE → UNIT MAPPING
 ```
-'Rep'     → label: 'Reps',    unit: 'reps', summaryUnit: 'r'
-'Time'    → label: 'Seconds', unit: 'seconds', summaryUnit: 's'
-'Minutes' → label: 'Minutes', unit: 'min',     summaryUnit: 'min'
+'Rep'     → label: 'Reps',    unit: 'reps'
+'Time'    → label: 'Seconds', unit: 'seconds'
+'Minutes' → label: 'Minutes', unit: 'min'
 ```
 
-### SUMMARY TEXT FORMAT
+### LOG FLOW (first session only)
 ```
-'Rep'     → "15r × 3 · Morning"
-'Time'    → "45s × 3 · Afternoon"
-'Minutes' → "35min × 1 · Early Morning"
+1. _handleLogClick(exercise, prog) — wired to #log-btn-{id}
+2. _submitting Map checked (double-tap guard)
+3. count + repeats read, validated >= 1
+4. timeOfDay from #tod-select-{id}
+5. LogEntry: { exerciseId, progressionLevel, timeOfDay, count, repeats, loggedAt }
+6. Log button disabled, text = 'Saving…'
+7. saveLogEntry(uid, todayStr(), dayOfWeek, newEntry)   — ALWAYS save (never update)
+8. Failure: Log button re-enabled, showToast error
+9. Success:
+     window._app.updateTodayLog(id, newEntry)
+     _setCardLogged(): --logged class, badge, checkmark, Log disabled, Add revealed
+     window._historyModule?.invalidateCache()
+     showToast success
+```
+
+### ADD SESSION FLOW (second session onward)
+```
+1. _handleAdd(exercise, prog) — wired to #add-btn-{id}
+2. _submitting Map checked (double-tap guard)
+3. Same input reading + validation as Log flow
+4. Add button disabled, text = 'Saving…'
+5. saveLogEntry(uid, todayStr(), dayOfWeek, newEntry)   — arrayUnion appends
+6. Failure: Add button re-enabled, showToast error
+7. Success:
+     window._app.updateTodayLog(id, newEntry)
+     Add button re-enabled, text = '+ Add Session'
+     #logged-summary-{id} text rebuilt with _buildBadgeLabel()
+     window._historyModule?.invalidateCache()
+     showToast success
 ```
 
 ### READS FROM window._app
 ```
 window._app.uid              — for Firestore calls
-window._app.todayLog         — TodayLogIndex, checked to determine log vs update
-window._app.progressions     — for current level (passed to getProgressionData)
+window._app.todayLog         — { [exerciseId]: LogEntry[] }
+window._app.progressions     — for current level
 window._app.todayExercises   — used by refresh()
-```
-
-### WRITES TO window._app
-```
-Does NOT write directly.
-Calls window._app.updateTodayLog(exerciseId, entry) after every successful write.
-app.js owns all state mutation.
 ```
 
 ### MODULE INTERFACE
 ```javascript
 window._loggerModule = {
   refresh()   // Re-renders all cards from current window._app state.
-              // Called by app.js nav wiring when user taps Today nav button.
 }
-```
-
-### LOG / UPDATE FLOW
-```
-1. User taps Log / Update button on a card
-2. _submitting Map checked — if true, return immediately (double-tap guard)
-3. count + repeats inputs read and parseInt'd — validated as integers >= 1
-4. timeOfDay read from #time-of-day select
-5. LogEntry built: { exerciseId, progressionLevel, timeOfDay, count, repeats, loggedAt }
-6. Button disabled, text = 'Saving...' while write in progress
-7. If window._app.todayLog[id] exists:
-     updateLogEntry(uid, todayStr(), oldEntry, newEntry)   — arrayRemove + arrayUnion
-   Else:
-     saveLogEntry(uid, todayStr(), dayOfWeek, newEntry)    — 4 params
-8. On Firestore failure: button re-enabled, showToast error, return
-9. On success:
-     window._app.updateTodayLog(id, newEntry)   — updates memory + refreshes header badge
-     Card UI → logged state: --logged class, summary badge, checkmark shown, button = Update
-     showToast success message
-```
-
-### DOUBLE-TAP PROTECTION
-```
-_submitting: Map<exerciseId, boolean>
-Set true:  before Firestore write begins
-Cleared:   on both success AND failure paths
-Button:    disabled + text 'Saving...' during write, re-enabled on failure
 ```
 
 
@@ -984,13 +980,16 @@ screen-progressions HIDDEN    — style="display:none"
 
 ---
 
-## MODULE: history.js (T3.5)
+## MODULE: history.js (T3.5, revised Add Session)
 
 ```
 FILE:           js/history.js
-SOURCE STATUS:  DELIVERED T3.5 — written against verified sources
+SOURCE STATUS:  DELIVERED — revised this session for multi-session aggregation
 VERIFIED FROM:  table.css, styles.css, index.html, firestore.js, scheduler.js,
                 exercises.js — all confirmed
+LAST CHANGED:   _findEntry() → _findEntries() returns LogEntry[].
+                Cells aggregate across sessions. Walk shows total minutes.
+                _typeUnitForEntry() removed — type resolved from exercise.progressions[].
 ```
 
 ### IMPORTS
@@ -1044,13 +1043,31 @@ td.cell-ex              — exercise data cell
 CELL CONTENT (mutually exclusive):
 .cell-na / .cell-na-inner   — not applicable that day (dot)
 .cell-empty                 — applicable but not logged (dash)
-.cell-skipped               — logged with count=0
-.cell-logged                — logged with data
-  .cell-prog                — "L{level}" blue chip
-  .cell-count               — "{count}r" or "{count}s"
-  .cell-repeats             — "×{repeats}"
+.cell-skipped               — first entry count=0
+.cell-logged                — logged with data (aggregated across all sessions)
+  .cell-prog                — "L{level}" blue chip (from first entry)
+  .cell-count               — Rep/Time: "{totalCount}r" or "{totalCount}s" (sum across sessions)
+                              Minutes: "{totalMins}min" (sum of count across sessions)
+  .cell-repeats             — Rep/Time: "×{totalRepeats}" (sum of repeats)
+                              Minutes: "×{sessionCount}"
 
 .empty-state                — loading/error message
+```
+
+### MULTI-SESSION AGGREGATION
+```
+_findEntries(logDoc, exerciseId) → LogEntry[]   (all sessions for that exercise/date)
+_buildCellContent(applicable, entries, exercise) — takes full entries array
+
+Rep/Time: totalCount  = entries.reduce((s,e) => s + e.count,   0)
+          totalReps   = entries.reduce((s,e) => s + e.repeats, 0)
+          display:      "{totalCount}{unit} × {totalReps}"
+
+Minutes:  totalMins   = entries.reduce((s,e) => s + e.count, 0)
+          sessionCount = entries.length
+          display:      "{totalMins}min × {sessionCount}"
+
+progressionLevel shown is from entries[0] (first session of the day).
 ```
 
 ### CACHING BEHAVIOUR
@@ -1058,7 +1075,8 @@ CELL CONTENT (mutually exclusive):
 _cachedLogs:    { dateStr: LogDoc|null } — stored after first successful fetch
 _cachedDateStr: todayStr() at fetch time — used to detect day rollover
 Cache invalidated: when todayStr() !== _cachedDateStr (date rolled over)
-Cache NOT invalidated: when user logs an exercise (history shows committed data)
+Cache invalidated: by logger.js after every Log or Add Session save
+                   → window._historyModule?.invalidateCache() called on success
 Manual invalidation: window._historyModule.invalidateCache()
 ```
 
@@ -1312,7 +1330,8 @@ docs/module-api-reference.md — this document
 ```
 
 ---
-*Document last updated: 2026-03-07 (revision 4). Phase 3 complete. Phase 4 in progress.*
-*Google Sign-In implemented and confirmed working across Windows Edge + iPhone Safari.*
-*Next: sign-out button (T4.6 prerequisite), T4.9 README.md, then Phase 5.*
+*Document last updated: 2026-03-08 (revision 5). Phase 3 complete. Phase 4 in progress.*
+*Google Sign-In confirmed working (Windows Edge + iPhone Safari).*
+*Add Session feature delivered: Log-once (C1), LogEntry[] per exercise, Walk totals in history.*
+*Pending: sign-out button, T4.9 README.md, Phase 5.*
 *When in doubt: ask the human to paste the current file. Do not infer.*
