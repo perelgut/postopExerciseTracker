@@ -198,10 +198,11 @@ function _buildCellContent(applicable, entries, exercise) {
  * @returns {HTMLTableElement}
  */
 function _buildTable(dates, logsMap, today) {
-  // Determine which exercises appear in at least one of the 30 dates
-  // so we don't show columns for exercises that never apply in this window.
-  // An exercise is included if isApplicableOn() is true for ANY of the dates.
+  // An exercise column is shown if:
+  //   - It is applicable on at least one of the 30 dates (active exercises), OR
+  //   - It has frequency 'shelved' (retired — always shown for historical continuity)
   const visibleExercises = EXERCISES.filter(exercise =>
+    exercise.frequency === 'shelved' ||
     dates.some(dateStr => isApplicableOn(_parseLocalDate(dateStr), exercise))
   );
 
@@ -227,7 +228,14 @@ function _buildTable(dates, logsMap, today) {
     th.className   = 'col-ex';
     th.scope       = 'col';
     th.textContent = SHORT_NAME[exercise.id] ?? exercise.name;
-    th.title       = exercise.displayName;   // full name on hover
+    th.title       = exercise.frequency === 'shelved'
+      ? `${exercise.displayName} (retired)`
+      : exercise.displayName;
+    // Visually dim retired exercise headers
+    if (exercise.frequency === 'shelved') {
+      th.style.opacity = '0.45';
+      th.style.fontStyle = 'italic';
+    }
     headerRow.appendChild(th);
   });
 
@@ -354,6 +362,7 @@ window._historyModule = {
    * Call this after a log entry is saved (future enhancement — T3.4
    * currently does not invalidate history cache, which is acceptable
    * since history is fetched fresh on first nav tap each session).
+   * Also called by logger.js after every Log or Add Session save.
    */
   invalidateCache() {
     _cachedLogs    = null;

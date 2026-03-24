@@ -4,7 +4,7 @@
 //   id             {number}   — unique, stable identifier
 //   name           {string}   — short machine name
 //   displayName    {string}   — label shown in UI
-//   frequency      {string}   — 'Daily' | 'Alt1' | 'Alt2'
+//   frequency      {string}   — 'Daily' | 'Alt1' | 'Alt2' | 'shelved'
 //   maxProgression {number}   — highest level index (0 = single-level)
 //   progressions   {object[]} — array of ProgressionLevel objects
 //
@@ -32,13 +32,27 @@ const EXERCISES = [
     name: 'Walk',
     displayName: 'Walk',
     frequency: 'Daily',
-    maxProgression: 0,
+    maxProgression: 2,
     progressions: [
       {
         level: 0,
         description: 'Walk anywhere for a continuous time. Start at 20 minutes and build to 60 minutes eventually.',
         type: 'Minutes',
         defaultCount: 20,
+        defaultRepeats: 1,
+      },
+      {
+        level: 1,
+        description: 'Walk anywhere for a continuous time. Start at 20 minutes and build to 60 minutes eventually.',
+        type: 'Minutes',
+        defaultCount: 30,
+        defaultRepeats: 1,
+      },
+      {
+        level: 2,
+        description: 'Walk anywhere for a continuous time. Start at 20 minutes and build to 60 minutes eventually.',
+        type: 'Minutes',
+        defaultCount: 60,
         defaultRepeats: 1,
       },
     ],
@@ -53,7 +67,7 @@ const EXERCISES = [
     progressions: [
       {
         level: 0,
-        description: 'Lying on your back, tighten your abdominal muscles and lift one knee toward your chest. Hold for 5 seconds. Alternate legs.',
+        description: 'Siting tall, lift your operated leg up so your foot is off the floor.  Avoid leaning back.  Do not let your nee turn out.',
         type: 'Rep',
         defaultCount: 10,
         defaultRepeats: 3,
@@ -122,7 +136,7 @@ const EXERCISES = [
     progressions: [
       {
         level: 0,
-        description: 'Lying on your back, bring one knee to your chest using both hands. Hold gently. Alternate legs.',
+        description: 'Lying on your back, bring operated knee to your chest using towel. Hold gently. Alternate legs.',
         type: 'Time',
         defaultCount: 30,
         defaultRepeats: 3,
@@ -139,16 +153,16 @@ const EXERCISES = [
 
   {
     id: 16,
-    name: 'HipFlexorStretch',
-    displayName: 'Hip Flexor Stretch',
+    name: 'StraightLegPushDown',
+    displayName: 'Straight Leg Push Down',
     frequency: 'Daily',
     maxProgression: 0,
     progressions: [
       {
         level: 0,
-        description: 'In a lunge position with the back knee on the floor, push your hips gently forward. Hold the stretch.',
-        type: 'Time',
-        defaultCount: 30,
+        description: 'Using a towel, bring the good leg to the chest while keeping the operated leg straight, pushing toward the bed. Hold 10 seconds',
+        type: 'Rep',
+        defaultCount: 10,
         defaultRepeats: 3,
       },
     ],
@@ -158,7 +172,7 @@ const EXERCISES = [
     id: 17,
     name: 'SeatedHamstringStretch',
     displayName: 'Seated Hamstring Stretch',
-    frequency: 'Daily',
+    frequency: 'shelved',
     maxProgression: 0,
     progressions: [
       {
@@ -166,6 +180,30 @@ const EXERCISES = [
         description: 'Seated on a chair, straighten one leg and reach toward your toes. Hold the stretch. Alternate legs.',
         type: 'Time',
         defaultCount: 30,
+        defaultRepeats: 3,
+      },
+    ],
+  },
+
+  {
+    id: 18,
+    name: 'AbductorStretch',
+    displayName: 'AbductorStretch',
+    frequency: 'Daily',
+    maxProgression: 1,
+    progressions: [
+      {
+        level: 0,
+        description: 'Stand at counter and lean forward on forearms. Bend good leg and straighten operated leg to the side.  Feel stretch on inner thigh.',
+        type: 'Rep',
+        defaultCount: 10,
+        defaultRepeats: 3,
+      },
+      {
+        level: 1,
+        description: 'Stand at counter and lean forward on forearms. Bend good leg and straighten operated leg to the side.  Feel stretch on inner thigh.',
+        type: 'Rep',
+        defaultCount: 15,
         defaultRepeats: 3,
       },
     ],
@@ -220,7 +258,7 @@ const EXERCISES = [
     progressions: [
       {
         level: 0,
-        description: 'Lying on your side with knees bent, keep feet together and lift the top knee as high as comfortable without rolling your hips.',
+        description: 'Lying on your side, belly down, back straight, with knees bent, keep feet together and lift the top knee as high as comfortable without rolling your hips.  Feel in back pocket muscles.',
         type: 'Rep',
         defaultCount: 15,
         defaultRepeats: 3,
@@ -270,7 +308,7 @@ const EXERCISES = [
     progressions: [
       {
         level: 0,
-        description: 'Stand with feet shoulder-width apart. Lower yourself as if sitting into a chair, keeping your chest up and knees over your toes. Return to standing.',
+        description: 'Stand with feet shoulder-width apart. Lower yourself as if sitting into an elevated chair, keeping your chest up and knees over your toes. Return to standing.',
         type: 'Rep',
         defaultCount: 10,
         defaultRepeats: 3,
@@ -294,9 +332,9 @@ const EXERCISES = [
     progressions: [
       {
         level: 0,
-        description: 'With a resistance band around your ankles, slightly bend your knees and step sideways — 10 steps in each direction.',
+        description: 'With a resistance band around your thighs, slightly bend your knees and step sideways — 5 steps in each direction.',
         type: 'Rep',
-        defaultCount: 10,
+        defaultCount: 1,
         defaultRepeats: 3,
       },
       {

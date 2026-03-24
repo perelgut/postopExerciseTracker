@@ -55,6 +55,7 @@ function _freqClass(frequency) {
     case 'Daily': return 'freq-badge--daily';
     case 'Alt1':  return 'freq-badge--alt1';
     case 'Alt2':  return 'freq-badge--alt2';
+    case 'shelved':  return 'freq-badge--shelved';
     default:      return 'freq-badge--daily';
   }
 }
@@ -275,12 +276,12 @@ function _renderList() {
 
   list.innerHTML = '';
 
-  // EXERCISES is ordered: Walk(0), HipFlexorStr(9), Marching(14), HipBend(15),
-  // HipFlexorStretch(16), SeatedHamstring(17), Bridge(7), ClamShell(8),
-  // StandingHipAbd(10), Squat(11), CrabWalk(12), StandingLegAbd(13)
-  // We render in EXERCISES array order to preserve the intended grouping.
+  // Render in EXERCISES array order.
+  // shelved exercises are retired — they no longer appear on this screen.
+  // They remain visible in the history table for historical continuity.
   let rendered = 0;
   EXERCISES.forEach(exercise => {
+    if (exercise.frequency === 'shelved') return;  // skip retired exercises
     const card = _buildCard(exercise.id);
     if (card) {
       list.appendChild(card);

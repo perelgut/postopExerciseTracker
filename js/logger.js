@@ -131,6 +131,7 @@ function _freqClass(frequency) {
     case 'Daily': return 'freq-badge--daily';
     case 'Alt1':  return 'freq-badge--alt1';
     case 'Alt2':  return 'freq-badge--alt2';
+    case 'shelved':  return 'freq-badge--shelved';
     default:      return 'freq-badge--daily';
   }
 }

@@ -397,6 +397,13 @@ select, input {
   background: var(--clr-alt2-bg);
 }
 
+.freq-badge--shelved {
+  color: #888;
+  background: #eee;
+  font-style: italic;
+  opacity: 0.75;
+}
+
 /* Progression badge */
 .prog-badge {
   font-size: 0.6875rem;
