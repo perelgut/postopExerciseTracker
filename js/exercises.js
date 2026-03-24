@@ -172,7 +172,7 @@ const EXERCISES = [
     id: 17,
     name: 'SeatedHamstringStretch',
     displayName: 'Seated Hamstring Stretch',
-    frequency: 'shelved',
+    frequency: 'Daily',
     maxProgression: 0,
     progressions: [
       {
@@ -356,7 +356,7 @@ const EXERCISES = [
     progressions: [
       {
         level: 0,
-        description: 'Standing, lift one leg straight back behind you, squeezing your glutes at the top. Hold briefly then lower. Alternate legs.',
+        description: 'Standing, lift good leg straight back behind you, knee pressed to counter, squeezing your glutes at the top. Hold briefly then lower. Use cane on operated side for balance.',
         type: 'Rep',
         defaultCount: 15,
         defaultRepeats: 3,
