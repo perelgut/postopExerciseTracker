@@ -67,6 +67,7 @@ const SHORT_NAME = {
   15: 'Hip Bend.',      // Hip Bending Stretch
   16: 'Flexor Stch.',   // Hip Flexor Stretch
   17: 'Hamstring',      // Seated Hamstring Stretch
+  18: 'Abduct.',        // Abductor Stretch
 };
 
 // ── Module state ───────────────────────────────────────────────────────────────
