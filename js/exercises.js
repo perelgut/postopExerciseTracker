@@ -129,16 +129,39 @@ const EXERCISES = [
     progressions: [
       {
         level: 0,
-        description: 'Lying on your back, bring operated knee to your chest using towel. Hold gently. Alternate legs.',
+        description: 'Lying on your back, bring operated knee to your chest using towel. Hold gently.',
         type: 'Time',
-        defaultCount: 30,
+        defaultCount: 10,
         defaultRepeats: 3,
       },
       {
         level: 1,
         description: 'Same as Level 1 but increase hold time to 45 seconds.',
         type: 'Time',
-        defaultCount: 45,
+        defaultCount: 30,
+        defaultRepeats: 3,
+      },
+    ],
+  },
+{
+    id: 2,
+    name: 'HipBendingStretch2',
+    displayName: 'Hip Bending Stretch2',
+    frequency: 'Daily',
+    maxProgression: 1,
+    progressions: [
+      {
+        level: 0,
+        description: 'Lying on your back, flatten operated leg.  Bring right knee to your chest using towel.',
+        type: 'Time',
+        defaultCount: 10,
+        defaultRepeats: 3,
+      },
+      {
+        level: 1,
+        description: 'Same as Level 1 but increase hold time to 45 seconds.',
+        type: 'Time',
+        defaultCount: 30,
         defaultRepeats: 3,
       },
     ],
